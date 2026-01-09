@@ -8,6 +8,9 @@ from services.budget_guard import BudgetGuard
 from services.suggester import Suggester
 from handlers.inbox import InboxHandler
 from handlers.control import ControlHandler
+from handlers.channel import ChannelHandler
+from services.channel_content import ChannelContentGenerator
+from services.image_service import ImageService
 
 
 # Load environment variables
@@ -44,10 +47,21 @@ async def main():
     budget_guard = BudgetGuard(db)
     suggester = Suggester(budget_guard)
     
+    # Create channel handler (if enabled)
+    channel_handler = None
+    if os.getenv("CHANNEL_POSTS_ENABLED", "off").lower() == "on":
+        content_generator = ChannelContentGenerator(budget_guard)
+        image_service = ImageService()
+        channel_handler = ChannelHandler(
+            client, db, content_generator, image_service
+        )
+        await channel_handler.start_scheduler()
+        print("📢 Group/channel posts enabled")
+    
     # Create handlers
     inbox_handler = InboxHandler(client, db, suggester, budget_guard)
     control_handler = ControlHandler(
-        client, db, suggester, budget_guard, inbox_handler
+        client, db, suggester, budget_guard, inbox_handler, channel_handler
     )
     
     # Register handlers

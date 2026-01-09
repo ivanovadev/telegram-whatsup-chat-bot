@@ -77,6 +77,17 @@ class Database:
             )
         """)
         
+        # Channel posts table (to track posted content and avoid duplicates)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS channel_posts (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                post_type TEXT NOT NULL,  -- 'morning' or 'evening'
+                topic TEXT NOT NULL,
+                content TEXT,  -- JSON content
+                posted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        
         conn.commit()
         conn.close()
     
@@ -299,3 +310,51 @@ class Database:
         
         conn.commit()
         conn.close()
+    
+    # ========== Channel Posts ==========
+    
+    def record_channel_post(self, post_type: str, topic: str, content: dict):
+        """Record a channel post to avoid duplicates."""
+        import json
+        conn = self._get_connection()
+        cursor = conn.cursor()
+        
+        cursor.execute("""
+            INSERT INTO channel_posts (post_type, topic, content)
+            VALUES (?, ?, ?)
+        """, (post_type, topic, json.dumps(content)))
+        
+        conn.commit()
+        conn.close()
+    
+    def get_used_channel_topics(self, days: int = 7) -> List[str]:
+        """Get topics used in morning posts in last N days."""
+        from datetime import datetime, timedelta
+        conn = self._get_connection()
+        cursor = conn.cursor()
+        
+        cutoff = (datetime.now() - timedelta(days=days)).isoformat()
+        cursor.execute("""
+            SELECT DISTINCT topic FROM channel_posts
+            WHERE post_type = 'morning' AND posted_at >= ?
+        """, (cutoff,))
+        
+        topics = [row[0] for row in cursor.fetchall()]
+        conn.close()
+        return topics
+    
+    def get_used_channel_types(self, days: int = 7) -> List[str]:
+        """Get travel types used in evening posts in last N days."""
+        from datetime import datetime, timedelta
+        conn = self._get_connection()
+        cursor = conn.cursor()
+        
+        cutoff = (datetime.now() - timedelta(days=days)).isoformat()
+        cursor.execute("""
+            SELECT DISTINCT topic FROM channel_posts
+            WHERE post_type = 'evening' AND posted_at >= ?
+        """, (cutoff,))
+        
+        types = [row[0] for row in cursor.fetchall()]
+        conn.close()
+        return types

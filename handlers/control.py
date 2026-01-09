@@ -17,13 +17,15 @@ class ControlHandler:
         db: Database,
         suggester: Suggester,
         budget_guard: BudgetGuard,
-        inbox_handler
+        inbox_handler,
+        channel_handler=None
     ):
         self.client = client
         self.db = db
         self.suggester = suggester
         self.budget_guard = budget_guard
         self.inbox_handler = inbox_handler
+        self.channel_handler = channel_handler
         self.control_chat_id = os.getenv("CONTROL_CHAT_ID", "me")
     
     def register(self):
@@ -218,6 +220,63 @@ class ControlHandler:
   Whitelist: {'✅' if os.getenv('WHITELIST_ENABLED', 'on').lower() == 'on' else '❌'}"""
             
             await event.reply(status_msg)
+        
+        elif text_lower == 'travel':
+            # Trigger group/channel post manually (for testing)
+            if self.channel_handler:
+                await event.reply("🚀 Generating travel post...")
+                try:
+                    await self.channel_handler._post_evening_content()
+                    await event.reply("✅ Travel post sent to group!")
+                except Exception as e:
+                    error_msg = str(e)
+                    await event.reply(f"❌ Error: {error_msg}\n\n💡 Check:\n- Is CHANNEL_USERNAME or CHANNEL_ID set?\n- Are you admin in the group?\n- Check bot logs for details")
+                    print(f"[CONTROL] Travel post error: {e}")
+            else:
+                await event.reply("❌ Group posts not enabled. Set CHANNEL_POSTS_ENABLED=on in .env")
+        
+        elif text_lower == 'travel morning':
+            # Trigger morning post manually (for testing)
+            if self.channel_handler:
+                await event.reply("🌍 Generating morning post...")
+                try:
+                    await self.channel_handler._post_morning_content()
+                    await event.reply("✅ Morning post sent to group!")
+                except Exception as e:
+                    error_msg = str(e)
+                    await event.reply(f"❌ Error: {error_msg}\n\n💡 Check:\n- Is CHANNEL_USERNAME or CHANNEL_ID set?\n- Are you admin in the group?\n- Check bot logs for details")
+                    print(f"[CONTROL] Morning post error: {e}")
+            else:
+                await event.reply("❌ Group posts not enabled. Set CHANNEL_POSTS_ENABLED=on in .env")
+        
+        elif text_lower == 'get group id':
+            # Helper command to get group ID
+            try:
+                if event.message.reply_to:
+                    replied = await event.get_reply_message()
+                    if replied:
+                        # Get chat from replied message
+                        chat = await replied.get_chat()
+                        chat_id = chat.id
+                        chat_title = getattr(chat, 'title', 'Unknown')
+                        chat_username = getattr(chat, 'username', None)
+                        
+                        info = f"📋 Group Info:\nTitle: {chat_title}\nID: {chat_id}"
+                        if chat_username:
+                            info += f"\nUsername: @{chat_username}"
+                        
+                        info += f"\n\n💡 Add to .env:\nCHANNEL_ID={chat_id}"
+                        if chat_username:
+                            info += f"\n# OR use username:\n# CHANNEL_USERNAME={chat_username}"
+                        
+                        await event.reply(info)
+                    else:
+                        await event.reply("❌ Could not get replied message")
+                else:
+                    await event.reply("💡 Reply to any message from the group with 'get group id' to get the ID")
+            except Exception as e:
+                await event.reply(f"❌ Error: {e}\n\n💡 Make sure you're in the group and reply to a message from there")
+                print(f"[CONTROL] get group id error: {e}")
         
         else:
             # Unknown command

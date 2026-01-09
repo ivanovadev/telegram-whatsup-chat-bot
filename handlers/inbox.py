@@ -50,7 +50,7 @@ class InboxHandler:
             
             # Check if it's a private message (PeerUser for private chats)
             if not isinstance(event.message.peer_id, (User, PeerUser)):
-                print("❌ Not a private message (not User/PeerUser)")
+                # Silently ignore non-private messages (groups, channels, etc.)
                 return
             
             # Check if it's not from ourselves
