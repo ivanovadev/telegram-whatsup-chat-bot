@@ -143,30 +143,24 @@ pip install -r requirements.txt
 
 Create `.env` file based on `.env.example`:
 
-```env
-# Telegram API credentials
-TG_API_ID=your_api_id
-TG_API_HASH=your_api_hash
-TG_SESSION_PATH=./data/session.session
-
-# Control chat (where cards appear)
-CONTROL_CHAT_ID=me  # "me" = Saved Messages
-
-# Modes
-BUSY_MODE=on
-WHITELIST_ENABLED=on
-WHITELIST_USERNAMES=username1,username2  # Optional: comma-separated
-
-# LLM (optional)
-LLM_ENABLED=on
-OPENAI_API_KEY=your_openai_key
-OPENAI_MODEL=gpt-4o-mini
-
-# Cost control
-DAILY_BUDGET_USD=2.0
-ALERT_AT_USD=1.5
-HARD_STOP_USD=2.5
+```bash
+cp .env.example .env
 ```
+
+Then edit `.env` and fill in your values. See `.env.example` for all available options.
+
+**Required variables:**
+- `TG_API_ID` - Get from https://my.telegram.org/apps
+- `TG_API_HASH` - Get from https://my.telegram.org/apps
+
+**Optional but recommended:**
+- `LLM_ENABLED=on` - Enable LLM features
+- `OPENAI_API_KEY` - Your OpenAI API key
+- `CHANNEL_POSTS_ENABLED=on` - Enable travel posts
+- `CHANNEL_ID` or `CHANNEL_USERNAME` - Target group/channel
+- `UNSPLASH_ACCESS_KEY` - For images in posts
+
+See `.env.example` for complete list of all variables with descriptions.
 
 ### 3. Run
 
