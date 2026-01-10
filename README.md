@@ -1,247 +1,298 @@
-# 🤖 Telegram Reply Assistant with LLM Integration
+# 🤖 Telegram Userbot - Microservices Architecture
 
-Telegram userbot that helps you manage incoming messages by generating response options using LLM (OpenAI) or templates. Works as a personal assistant that creates "cards" with 3 response options for you to choose from.
+Telegram userbot split into three independent microservices:
+1. **Auto-Reply Service** - Handles incoming messages and generates response options
+2. **Group Posts Service** - Generates and posts travel content to groups (dev environment)
+3. **Channel Posts Service** - Generates and posts travel content to channels (production)
 
-## 🎯 Project Goal
-
-Telegram userbot that:
-- Automatically creates response cards for incoming private messages
-- Generates 3 response options using LLM (OpenAI) or templates
-- Supports whitelist and busy mode
-- Tracks costs and usage
-- Ready to showcase in interviews
-
-**Features:**
-- LLM integration (OpenAI GPT-4o-mini)
-- Cost control with daily budget limits
-- Whitelist support (via env variable or database)
-- Cooldown between cards per user
-- Status monitoring via control chat
-
----
+All services can run independently in separate terminals.
 
 ## 🏗️ Architecture
 
 ```
-┌─────────────────────┐
-│  Telegram Userbot   │
-│   (Telethon API)    │
-└──────────┬──────────┘
-           │
-    ┌──────▼──────┐
-    │  Inbox      │  ← Incoming private messages
-    │  Handler    │
-    └──────┬──────┘
-           │
-    ┌──────▼──────┐
-    │  Suggester  │  ← Generate 3 response options
-    │  (LLM/Tpl)  │
-    └──────┬──────┘
-           │
-    ┌──────▼──────┐
-    │  Control    │  ← You reply with 1/2/3
-    │  Handler    │
-    └──────┬──────┘
-           │
-    ┌──────▼──────┐
-    │  Database   │  ← Store cards, whitelist, usage
-    └─────────────┘
-```
-
----
-
-## 🛠️ Tech Stack
-
-### Tech Stack:
-- **Language:** Python 3.11+
-- **Telegram Library:** Telethon (userbot)
-- **LLM API:** OpenAI GPT-4o-mini
-- **Database:** SQLite
-- **Cost Control:** Daily budget limits with alerts
-
----
-
-## 💰 Monthly Costs
-
-Estimated monthly costs for running this chatbot:
-
-### **MVP / Low Usage** (~100-500 messages/day)
-- **Hosting (Heroku/Railway):** $5-7/month
-- **OpenAI API (gpt-4o-mini):** ~$2-5/month
-  - ~500 messages × 200 tokens avg = ~$2-3/month
-- **Twilio WhatsApp (optional):** $0-5/month
-  - Free tier: 1,000 messages/month
-  - After: $0.005 per message
-- **Telegram Bot:** Free
-- **Total:** **$7-17/month**
-
-### **Medium Usage** (~1,000-2,000 messages/day)
-- **Hosting:** $7-10/month
-- **OpenAI API:** ~$10-20/month
-  - ~2,000 messages × 200 tokens avg = ~$10-15/month
-- **Twilio WhatsApp:** $5-15/month
-  - ~1,500 messages/month = ~$7.50
-- **Total:** **$22-45/month**
-
-### **High Usage** (~5,000+ messages/day)
-- **Hosting:** $25-50/month
-- **OpenAI API:** ~$50-100/month
-  - ~5,000 messages × 200 tokens avg = ~$50-75/month
-- **Twilio WhatsApp:** $25-50/month
-- **Total:** **$100-200/month**
-
-### **Cost Optimization Tips:**
-- Use **Railway.app** or **Render.com** instead of Heroku (cheaper)
-- Use **gpt-4o-mini** instead of gpt-4 (10x cheaper)
-- Implement **caching** for similar queries
-- Use **SQLite** instead of PostgreSQL for MVP (free)
-- **Telegram** is completely free (no API costs)
-
-### **Free Alternatives:**
-- **Telegram only:** $0/month (if running locally)
-- **Railway free tier:** Limited, but good for testing
-- **Render free tier:** Sleeps after inactivity, but free
-
----
-
-## 📋 Project Structure
-
-```
 telegram-whatsup-chat-bot/
-├── app/
-│   └── main.py              # Main entry point (Telegram userbot)
-├── handlers/
-│   ├── inbox.py             # Handle incoming private messages
-│   └── control.py           # Handle commands in control chat
-├── services/
-│   ├── suggester.py         # Generate response options (LLM or templates)
-│   └── budget_guard.py      # Cost control and limits
-├── storage/
-│   └── db.py                # SQLite database operations
-├── tests/
-│   └── test_db.py           # Database tests
-├── data/                    # Session and database (gitignored)
-├── .env.example             # Environment variables template
-├── requirements.txt         # Python dependencies
-├── run.sh                  # Run script
-└── README.md
+├── auto-reply-service/      # Auto-reply microservice
+│   ├── app/
+│   ├── handlers/           # inbox, control
+│   ├── services/           # suggester, budget_guard
+│   ├── storage/            # database
+│   └── requirements.txt
+│
+├── group-posts-service/     # Group posts microservice (dev)
+│   ├── app/
+│   ├── services/           # channel_handler, channel_content, image_service
+│   ├── storage/            # database
+│   └── requirements.txt
+│
+├── channel-posts-service/   # Channel posts microservice (production)
+│   ├── app/
+│   ├── services/           # channel_handler, channel_content, image_service
+│   ├── storage/            # database
+│   └── requirements.txt
+│
+├── .env.example            # Root .env.example (deprecated, use service-specific)
+├── README.md
+└── MANUAL_CONTROL.md
 ```
-
----
 
 ## 🚀 Quick Start
 
-### 1. Install Dependencies
+### Setup
+
+Each service has its own `.env` file. Configure each service separately:
 
 ```bash
-python -m venv venv
-source venv/bin/activate  # Windows: venv\Scripts\activate
-pip install -r requirements.txt
-```
-
-### 2. Environment Variables Setup
-
-Create `.env` file based on `.env.example`:
-
-```bash
+# Auto-Reply Service
+cd auto-reply-service
 cp .env.example .env
+# Edit .env with your credentials
+
+# Group Posts Service (Dev)
+cd ../group-posts-service
+cp .env.example .env
+# Edit .env with your credentials
+
+# Channel Posts Service (Production)
+cd ../channel-posts-service
+cp .env.example .env
+# Edit .env with your credentials
 ```
 
-Then edit `.env` and fill in your values. See `.env.example` for all available options.
+### Run Services Individually
 
-**Required variables:**
-- `TG_API_ID` - Get from https://my.telegram.org/apps
-- `TG_API_HASH` - Get from https://my.telegram.org/apps
-
-**Optional but recommended:**
-- `LLM_ENABLED=on` - Enable LLM features
-- `OPENAI_API_KEY` - Your OpenAI API key
-- `CHANNEL_POSTS_ENABLED=on` - Enable travel posts
-- `CHANNEL_ID` or `CHANNEL_USERNAME` - Target group/channel
-- `UNSPLASH_ACCESS_KEY` - For images in posts
-
-See `.env.example` for complete list of all variables with descriptions.
-
-### 3. Run
+#### Auto-Reply Service
 
 ```bash
+cd auto-reply-service
 ./run.sh
 ```
 
 Or manually:
 ```bash
+cd auto-reply-service
+python3 -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
 python -m app.main
 ```
 
----
+#### Group Posts Service (Dev)
 
-## 📚 Usage
+```bash
+cd group-posts-service
+./run.sh
+```
 
-### How It Works
+Or manually:
+```bash
+cd group-posts-service
+python3 -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
+python -m app.main
+```
 
-1. **Incoming Message:** Someone sends you a private message
-2. **Card Creation:** Bot creates a card with 3 response options in Saved Messages
-3. **You Choose:** Reply to the card with `1`, `2`, or `3`
-4. **Response Sent:** Bot sends the selected response to the original sender
+#### Channel Posts Service (Production)
 
-### Commands in Control Chat (Saved Messages)
+```bash
+cd channel-posts-service
+./run.sh
+```
 
-- `status` - Show current status (budget, LLM, cards)
-- `busy on/off` - Enable/disable busy mode
-- `whitelist add @username` - Add user to whitelist (if DB whitelist enabled)
-- `whitelist list` - Show whitelist
+Or manually:
+```bash
+cd channel-posts-service
+python3 -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
+python -m app.main
+```
 
----
+### Running Multiple Services
 
-## ✅ Current Features
+You can run multiple services in separate terminals:
 
+**Terminal 1 - Auto-Reply:**
+```bash
+cd auto-reply-service
+./run.sh
+```
+
+**Terminal 2 - Group Posts (Dev):**
+```bash
+cd group-posts-service
+./run.sh
+```
+
+**Terminal 3 - Channel Posts (Production):**
+```bash
+cd channel-posts-service
+./run.sh
+```
+
+## 📋 Environment Variables
+
+Each service has its own `.env` file. See service-specific `.env.example` files:
+
+- `auto-reply-service/.env.example` - Auto-reply configuration
+- `group-posts-service/.env.example` - Group posts (dev) configuration
+- `channel-posts-service/.env.example` - Channel posts (production) configuration
+
+**Common for all services:**
+- `TG_API_ID` - Get from https://my.telegram.org/apps
+- `TG_API_HASH` - Get from https://my.telegram.org/apps
+
+**Auto-Reply Service specific:**
+- `LLM_ENABLED=on` (optional)
+- `OPENAI_API_KEY` (if LLM enabled)
+- `BUSY_MODE=on`
+- `WHITELIST_ENABLED=on`
+
+**Group Posts Service specific:**
+- `GROUP_POSTS_ENABLED=on`
+- `GROUP_ID` or `GROUP_USERNAME`
+- `OPENAI_API_KEY` (for content generation)
+- `UNSPLASH_ACCESS_KEY` (for images)
+
+**Channel Posts Service specific:**
+- `CHANNEL_POSTS_ENABLED=on`
+- `CHANNEL_ID` or `CHANNEL_USERNAME`
+- `OPENAI_API_KEY` (for content generation)
+- `UNSPLASH_ACCESS_KEY` (for images)
+
+## 🎯 Services Overview
+
+### Auto-Reply Service
+
+Handles incoming private messages:
+- Creates response cards with 3 options
+- Uses LLM (OpenAI) or templates
+- Supports whitelist and busy mode
+- Control chat commands (`status`, `busy on/off`, etc.)
+
+**Files:**
+- `app/main.py` - Entry point
+- `handlers/inbox.py` - Incoming message handler
+- `handlers/control.py` - Control chat commands
+- `services/suggester.py` - Response generation
+- `services/budget_guard.py` - Cost control
+
+### Group Posts Service (Dev)
+
+Generates and posts travel content to **groups** (development/testing):
+- Scheduled morning posts (top 5 countries)
+- Scheduled evening posts (top 3 travel destinations)
+- Country rankings with images
+- Signature dishes and facts
+
+**Files:**
+- `app/main.py` - Entry point
+- `services/channel_handler.py` - Posting logic
+- `services/channel_content.py` - Content generation
+- `services/image_service.py` - Image fetching
+
+### Channel Posts Service (Production)
+
+Generates and posts travel content to **channels** (production):
+- Scheduled morning posts (top 5 countries)
+- Scheduled evening posts (top 3 travel destinations)
+- Country rankings with images
+- Signature dishes and facts
+
+**Files:**
+- `app/main.py` - Entry point
+- `services/channel_handler.py` - Posting logic
+- `services/channel_content.py` - Content generation
+- `services/image_service.py` - Image fetching
+
+## 📁 Data Storage
+
+Each service has its own data directory:
+- **Auto-Reply Service**: `auto-reply-service/data/`
+- **Group Posts Service**: `group-posts-service/data/`
+- **Channel Posts Service**: `channel-posts-service/data/`
+
+Each service stores:
+- Session file: `data/session.session`
+- Database: `data/bot.db`
+
+**Note:** If you want to share the same Telegram session between services, set the same absolute path in each service's `.env` file for `TG_SESSION_PATH`.
+
+## 📚 Documentation
+
+- [Manual Control Guide](MANUAL_CONTROL.md) - Commands and usage
+- [Auto-Reply Service README](auto-reply-service/README.md)
+- [Channel Posts Service README](channel-posts-service/README.md)
+
+## ✅ Features
+
+### Auto-Reply Service
 - ✅ Telegram userbot (Telethon)
 - ✅ LLM integration (OpenAI GPT-4o-mini)
-- ✅ Template fallback (when LLM unavailable)
-- ✅ Whitelist support (env variable or database)
+- ✅ Template fallback
+- ✅ Whitelist support
 - ✅ Busy mode
-- ✅ Cost control with daily budget
+- ✅ Cost control
 - ✅ Cooldown per user
 - ✅ Status monitoring
-- ✅ SQLite database
 
----
+### Channel Posts Service
+- ✅ Scheduled posts
+- ✅ LLM-powered content
+- ✅ Image fetching (Unsplash)
+- ✅ Duplicate prevention
+- ✅ Country rankings
+- ✅ Signature dishes
+- ✅ Capital cities
 
-## 📖 Documentation
+## 🔧 Development
 
-- `QUICKSTART.md` - Quick setup guide
-- `.env.example` - Environment variables template
+### Project Structure
 
----
+```
+auto-reply-service/
+├── app/
+│   └── main.py
+├── handlers/
+│   ├── inbox.py
+│   └── control.py
+├── services/
+│   ├── suggester.py
+│   └── budget_guard.py
+└── storage/
+    └── db.py
 
-## 🐛 Troubleshooting
+group-posts-service/
+├── app/
+│   └── main.py
+└── services/
+    ├── channel_handler.py
+    ├── channel_content.py
+    └── image_service.py
 
-### Issue: "LLM error: insufficient_quota"
-**Solution:** Check OpenAI API key billing, add credits or use templates (`LLM_ENABLED=off`)
+channel-posts-service/
+├── app/
+│   └── main.py
+└── services/
+    ├── channel_handler.py
+    ├── channel_content.py
+    └── image_service.py
+```
 
-### Issue: Cards not appearing
-**Solution:** 
-- Check `BUSY_MODE=on` in `.env`
-- Check whitelist if `WHITELIST_ENABLED=on`
-- Check cooldown (300 seconds default)
+### Running Tests
 
-### Issue: "Card not found or already processed"
-**Solution:** Card was already replied to. Wait for new message to create new card.
+```bash
+# From project root
+pytest
+```
 
----
+## 💰 Costs
 
-## 📊 Status Check
+See `.env.example` for budget configuration:
+- `DAILY_BUDGET_USD=2.0`
+- `ALERT_AT_USD=1.5`
+- `HARD_STOP_USD=2.5`
 
-In Saved Messages, type `status` to see:
-- Budget spending and limits
-- LLM status and usage
-- Cards created today
-- Current modes (busy, whitelist)
+## 📝 License
 
----
-
-## 📚 Useful Resources
-
-- [Telethon Docs](https://docs.telethon.dev/)
-- [OpenAI API](https://platform.openai.com/docs)
-- [Telegram API](https://core.telegram.org/api)
+MIT
