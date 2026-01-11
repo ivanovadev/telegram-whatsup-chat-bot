@@ -4,8 +4,8 @@ import asyncio
 from dotenv import load_dotenv
 from telethon import TelegramClient
 from storage.db import Database
-from services.budget_guard import BudgetGuard
-from services.suggester import Suggester
+from shared_services.budget_guard import BudgetGuard
+from shared_services.suggester import Suggester
 from handlers.inbox import InboxHandler
 from handlers.control import ControlHandler
 

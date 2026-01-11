@@ -49,6 +49,28 @@ Required variables:
 
 See `.env.example` for complete list.
 
+## Testing
+
+The service includes comprehensive test scripts to verify all functionality:
+
+```bash
+# Navigate to tests directory
+cd tests/
+
+# Run all tests (14 commands including status)
+./test_services.sh
+
+# Check service status
+./test_services.sh status
+
+# Test specific services
+./test_services.sh travel news person
+```
+
+**Important:** The main service must be running in a separate terminal for tests to work.
+
+See [tests/README.md](tests/README.md) for detailed testing instructions.
+
 ## Differences from Channel Posts Service
 
 - Uses `GROUP_POSTS_ENABLED` instead of `CHANNEL_POSTS_ENABLED`

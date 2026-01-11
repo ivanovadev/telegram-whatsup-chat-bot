@@ -7,16 +7,6 @@ from openai import OpenAI
 
 logger = logging.getLogger(__name__)
 
-# Simple BudgetGuard interface for channel posts service
-class BudgetGuard:
-    def __init__(self, db):
-        self.db = db
-        self.llm_enabled = os.getenv("LLM_ENABLED", "off").lower() == "on"
-    def can_use_llm(self):
-        return (self.llm_enabled, None)
-    def record_llm_call(self, tokens, cost):
-        pass
-
 
 class ChannelContentGenerator:
     """Generate country rankings and travel content for channel."""

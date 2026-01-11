@@ -5,10 +5,29 @@ import logging
 from dotenv import load_dotenv
 from telethon import TelegramClient
 from storage.db import Database
-from services.channel_content import ChannelContentGenerator
+from content.channel_content import ChannelContentGenerator
 from services.image_service import ImageService
 from services.news_service import NewsService
+from content.person_content import PersonContentGenerator
+from content.tech_content import TechContentGenerator
+from services.ukraine_news_service import UkraineNewsService
+from content.spider_content import SpiderContentGenerator
+from content.quote_content import QuoteContentGenerator
+from content.africa_content import AfricaContentGenerator
+from content.london_content import LondonContentGenerator
+from content.uk_content import UKContentGenerator
+from content.job_content import JobContentGenerator
+from content.weather_content import WeatherContentGenerator
 from services.channel_handler import ChannelHandler
+
+# Import BudgetGuard from shared services
+import sys
+from pathlib import Path
+# Add project root to path to import shared_services
+service_dir = Path(__file__).parent.parent  # group-posts-service/
+project_root = service_dir.parent  # telegram-whatsup-chat-bot/
+sys.path.insert(0, str(project_root))
+from shared_services.budget_guard import BudgetGuard
 
 # Configure logging
 logging.basicConfig(
@@ -19,17 +38,6 @@ logging.basicConfig(
 # Load environment variables from service directory
 env_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), '.env')
 load_dotenv(env_path)
-
-# Simple BudgetGuard for group posts service
-import os
-class BudgetGuard:
-    def __init__(self, db):
-        self.db = db
-        self.llm_enabled = os.getenv("LLM_ENABLED", "off").lower() == "on"
-    def can_use_llm(self):
-        return (self.llm_enabled, None)
-    def record_llm_call(self, tokens, cost):
-        pass
 
 
 async def main():
@@ -93,22 +101,49 @@ async def main():
     print(f"📁 Using database: {db_path}")
     db = Database(db_path=db_path)
     budget_guard = BudgetGuard(db)
+    
+    # Check budget status
+    status = budget_guard.get_status()
+    print(f"💰 Budget status: ${status['estimated_usd']:.2f} / ${status['daily_budget']:.2f} USD")
+    if not status['can_use_llm']:
+        print(f"⚠️  LLM disabled: check settings or budget limits")
+    
     content_generator = ChannelContentGenerator(budget_guard)
     image_service = ImageService()
     news_service = NewsService(budget_guard)
+    person_service = PersonContentGenerator(budget_guard)
+    tech_service = TechContentGenerator(budget_guard)
+    ukraine_news_service = UkraineNewsService(budget_guard)
+    spider_service = SpiderContentGenerator(budget_guard)
+    quote_service = QuoteContentGenerator(budget_guard)
+    africa_service = AfricaContentGenerator(budget_guard)
+    london_service = LondonContentGenerator(budget_guard)
+    uk_service = UKContentGenerator(budget_guard)
+    job_service = JobContentGenerator(budget_guard)
+    weather_service = WeatherContentGenerator(budget_guard)
     
     # Create channel handler (works for groups too)
     channel_handler = ChannelHandler(
-        client, db, content_generator, image_service, news_service
+        client, db, content_generator, image_service, news_service, person_service, tech_service, ukraine_news_service, spider_service, quote_service, africa_service, london_service, uk_service, job_service, weather_service
     )
     
     # Start scheduler
     await channel_handler.start_scheduler()
     
+    # Check and send budget alerts
+    await budget_guard.check_and_alert(client)
+    
     print("✅ Group Posts Service started! (Dev Environment)")
     print(f"📢 Morning posts at: {channel_handler.morning_time}")
     print(f"📢 Evening posts at: {channel_handler.evening_time}")
     print(f"📰 News posts at: {channel_handler.news_morning_time} and {channel_handler.news_evening_time}")
+    print(f"💼 Job posts at: {channel_handler.job_morning_time} and {channel_handler.job_evening_time}")
+    print(f"🇬🇧 UK posts at: {channel_handler.uk_time}")
+    print(f"🇬🇧 London posts at: {channel_handler.london_time}")
+    print(f"🕷️ Spider posts at: {channel_handler.spider_time}")
+    print(f"👤 Person posts at: {channel_handler.person_time}")
+    print(f"🔧 Tech posts at: {channel_handler.tech_time}")
+    print(f"🌤️ Weather posts at: {channel_handler.weather_time}")
     
     # Run bot
     await client.run_until_disconnected()

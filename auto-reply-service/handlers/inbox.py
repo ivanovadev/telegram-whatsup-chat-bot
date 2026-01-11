@@ -6,8 +6,8 @@ from typing import Optional
 from telethon import TelegramClient, events
 from telethon.tl.types import User, PeerUser
 from storage.db import Database
-from services.suggester import Suggester
-from services.budget_guard import BudgetGuard
+from shared_services.suggester import Suggester
+from shared_services.budget_guard import BudgetGuard
 
 
 class InboxHandler:

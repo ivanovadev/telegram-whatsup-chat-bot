@@ -4,8 +4,8 @@ import re
 import asyncio
 from telethon import TelegramClient, events
 from storage.db import Database, CardStatus
-from services.suggester import Suggester
-from services.budget_guard import BudgetGuard
+from shared_services.suggester import Suggester
+from shared_services.budget_guard import BudgetGuard
 
 
 class ControlHandler:

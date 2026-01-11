@@ -1,0 +1,69 @@
+# Test System TODO Checklist
+
+## Phase 1: Critical Fixes ⚠️ 
+
+- [ ] Add health check before running tests
+  - Send `status` command
+  - Wait for response
+  - Abort if no response in 10s
+  
+- [ ] Add response validation
+  - Wait for bot reply after sending command
+  - Check if reply contains error
+  - Report actual success/failure
+  
+- [ ] Fix false positives
+  - Return False if no bot reply
+  - Return False if bot reports error
+  - Return detailed error message
+
+## Phase 2: Content Validation 📋
+
+- [ ] Create `validators.py`
+  - validate_weather(text)
+  - validate_status(text)
+  - validate_travel(text)
+  - validate_person(text)
+  - validate_job(text)
+  
+- [ ] Integrate validators into tests
+  - Call validator for each post type
+  - Report validation results
+  - Count validation failures
+
+## Phase 3: Detailed Reporting 📊
+
+- [ ] Add timing measurements
+  - Record command send time
+  - Record bot reply time
+  - Report processing duration
+  
+- [ ] Add structured output
+  - Show validation checklist
+  - Report pass/fail/partial
+  - Detailed failure reasons
+
+## Phase 4: Advanced Features ✨
+
+- [ ] Check if post appeared in group
+- [ ] Validate photos/images
+- [ ] Check for duplicate content
+- [ ] Performance benchmarks
+
+## Current Status
+
+✅ Documentation created:
+  - PROBLEMS_SUMMARY.md
+  - TESTING_ISSUES.md
+  - Updated README.md
+
+❌ No code changes yet
+❌ Tests still report false positives
+❌ No validation implemented
+
+## Next Immediate Steps
+
+1. Restart main service with new `status` command
+2. Test manually: send "status" in Saved Messages
+3. Verify status response format
+4. Begin Phase 1: health check implementation
