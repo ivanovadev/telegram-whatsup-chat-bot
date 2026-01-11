@@ -14,7 +14,7 @@ from content.person_content import PersonContentGenerator
 from content.tech_content import TechContentGenerator
 from content.london_content import LondonContentGenerator
 from content.uk_content import UKContentGenerator
-from content.job_content import JobContentGenerator
+from services.job_content import JobContentGenerator
 from storage.db import Database
 
 logger = logging.getLogger(__name__)
@@ -59,28 +59,37 @@ class ChannelHandler:
         # Can be group username, group ID, or channel username
         self.target_username = os.getenv("GROUP_USERNAME", os.getenv("CHANNEL_USERNAME", ""))
         self.target_id = os.getenv("GROUP_ID", os.getenv("CHANNEL_ID", ""))  # Alternative: group ID
-        self.morning_time = os.getenv("MORNING_POST_TIME", "09:00")
-        self.evening_time = os.getenv("EVENING_POST_TIME", "20:00")
-        self.news_morning_time = os.getenv("NEWS_MORNING_TIME", "08:00")
-        self.news_evening_time = os.getenv("NEWS_EVENING_TIME", "19:00")
-        self.person_time = os.getenv("PERSON_POST_TIME", "17:00")
-        self.tech_time = os.getenv("TECH_POST_TIME", "18:00")
-        self.ukraine_news_time = os.getenv("UKRAINE_NEWS_TIME", "12:00")
-        self.spider_time = os.getenv("SPIDER_POST_TIME", "14:00")
-        self.quote_time = os.getenv("QUOTE_POST_TIME", "15:00")
-        self.africa_time = os.getenv("AFRICA_POST_TIME", "16:00")
-        self.london_time = os.getenv("LONDON_POST_TIME", "13:00")
-        self.uk_time = os.getenv("UK_POST_TIME", "11:00")
-        self.job_morning_time = os.getenv("JOB_MORNING_TIME", "08:00")
-        self.job_evening_time = os.getenv("JOB_EVENING_TIME", "19:00")
-        self.weather_time = os.getenv("WEATHER_POST_TIME", "09:00")
+        # Sequential scheduling times (aligned with 10-minute intervals starting at 08:00)
+        self.evening_time = os.getenv("EVENING_POST_TIME", "08:10")  # travel
+        self.morning_time = os.getenv("MORNING_POST_TIME", "08:20")  # travel morning
+        self.news_morning_time = os.getenv("NEWS_MORNING_TIME", "08:30")
+        self.news_evening_time = os.getenv("NEWS_EVENING_TIME", "08:30")  # same as morning in sequential mode
+        self.tech_time = os.getenv("TECH_POST_TIME", "08:40")
+        self.person_time = os.getenv("PERSON_POST_TIME", "08:50")
+        self.ukraine_news_time = os.getenv("UKRAINE_NEWS_TIME", "09:00")
+        self.spider_time = os.getenv("SPIDER_POST_TIME", "09:10")
+        self.quote_time = os.getenv("QUOTE_POST_TIME", "09:20")
+        self.africa_time = os.getenv("AFRICA_POST_TIME", "09:30")
+        self.london_time = os.getenv("LONDON_POST_TIME", "09:40")  # Canary Wharf
+        self.uk_time = os.getenv("UK_POST_TIME", "09:50")
+        self.job_morning_time = os.getenv("JOB_MORNING_TIME", "10:00")
+        self.job_evening_time = os.getenv("JOB_EVENING_TIME", "10:00")  # same as morning in sequential mode
+        self.weather_time = os.getenv("WEATHER_POST_TIME", "10:10")
         self.enabled = os.getenv("GROUP_POSTS_ENABLED", "off").lower() == "on"
         self.control_chat_id = os.getenv("CONTROL_CHAT_ID", "me")
         
         # Commands will be registered after client is started
         self._commands_registered = False
+        self._resolved_control_chat = None  # Will be resolved when client is started
+        
+        # Sequential scheduling mode (starts at START_TIME, posts every INTERVAL_MIN minutes)
+        self.sequential_mode = os.getenv("SEQUENTIAL_SCHEDULING", "off").lower() == "on"
+        self.sequential_start_time = os.getenv("SEQUENTIAL_START_TIME", "08:00")
+        self.sequential_interval = int(os.getenv("SEQUENTIAL_INTERVAL_MIN", "10"))
         
         logger.info(f"🎛️ Control chat ID: {self.control_chat_id}")
+        if self.sequential_mode:
+            logger.info(f"📅 Sequential scheduling enabled: starts at {self.sequential_start_time}, every {self.sequential_interval} min")
     
     async def start_scheduler(self):
         """Start scheduled posts."""
@@ -141,10 +150,13 @@ class ChannelHandler:
         
         target = f"@{self.target_username}" if self.target_username else f"ID:{self.target_id}"
         logger.info(f"Starting scheduler for {target}")
-        logger.info(f"Morning posts at {self.morning_time}, evening at {self.evening_time}")
+        logger.info(f"📅 Sequential schedule: All posts in morning (08:10-10:10, 10-min intervals)")
         
         # Check if we missed morning post today
         await self._check_missed_posts()
+        
+        # Resolve control chat ID first (need async)
+        await self._resolve_control_chat()
         
         # Register manual trigger commands (after client is started)
         if not self._commands_registered:
@@ -154,17 +166,65 @@ class ChannelHandler:
         # Start background task
         asyncio.create_task(self._scheduler_loop())
     
+    async def _resolve_control_chat(self):
+        """Resolve control chat ID to actual entity."""
+        if self._resolved_control_chat is not None:
+            return self._resolved_control_chat
+        
+        try:
+            # If control_chat_id is "me", get our own user ID
+            if self.control_chat_id == "me":
+                me = await self.client.get_me()
+                self._resolved_control_chat = me.id
+                logger.info(f"✅ Resolved 'me' to user ID: {self._resolved_control_chat}")
+            else:
+                # Try to parse as int (user/chat ID)
+                try:
+                    chat_id = int(self.control_chat_id)
+                    self._resolved_control_chat = chat_id
+                    logger.info(f"✅ Using numeric chat ID: {self._resolved_control_chat}")
+                except ValueError:
+                    # It's a username, resolve it
+                    entity = await self.client.get_entity(self.control_chat_id)
+                    self._resolved_control_chat = entity.id
+                    logger.info(f"✅ Resolved '{self.control_chat_id}' to ID: {self._resolved_control_chat}")
+            
+            return self._resolved_control_chat
+        except Exception as e:
+            logger.error(f"❌ Failed to resolve control chat '{self.control_chat_id}': {e}")
+            # Fallback to "me"
+            me = await self.client.get_me()
+            self._resolved_control_chat = me.id
+            logger.info(f"⚠️ Using fallback 'me' -> {self._resolved_control_chat}")
+            return self._resolved_control_chat
+    
     def _register_commands(self):
         """Register manual trigger commands for testing."""
         logger.info(f"📝 Registering manual commands for control chat: {self.control_chat_id}")
         
-        @self.client.on(events.NewMessage(chats=self.control_chat_id))
+        # Register event handler without chat filter first, then filter inside
+        # This is more reliable for catching all messages
+        @self.client.on(events.NewMessage)
         async def handle_manual_trigger(event):
             try:
+                # First, check if this message is from the control chat
+                control_chat_id = await self._resolve_control_chat()
+                
+                # Get chat ID from event
+                chat_id = None
+                if event.is_private:
+                    chat_id = event.sender_id
+                elif event.chat_id:
+                    chat_id = event.chat_id
+                
+                # Only process messages from control chat
+                if chat_id != control_chat_id:
+                    return
+                
                 # Debug logging
                 text = (event.message.message or "").strip()
                 me = await self.client.get_me()
-                logger.info(f"📨 Received message: '{text}' (out={event.message.out}, sender_id={event.sender_id}, me_id={me.id}, reply_to={bool(event.message.reply_to)})")
+                logger.info(f"📨 Received message from control chat: '{text}' (out={event.message.out}, sender_id={event.sender_id}, me_id={me.id}, reply_to={bool(event.message.reply_to)})")
                 
                 # In Saved Messages, all messages have out=True and sender_id == me_id (it's a userbot)
                 # So we can't use sender_id to distinguish. Instead:
@@ -333,17 +393,17 @@ class ChannelHandler:
                         error_msg = str(e)
                         logger.error(f"❌ Manual spider post error: {e}", exc_info=True)
                         await event.reply(f"❌ Error: {error_msg}\n\n💡 Check:\n- Is GROUP_USERNAME or GROUP_ID set?\n- Are you admin in the group?\n- Check logs for details")
-                elif text_lower == "london":
+                elif text_lower == "canary":
                     command_handled = True
-                    logger.info("🇬🇧 Manual London command triggered")
-                    await event.reply("🇬🇧 Generating London post...")
+                    logger.info("🏢 Manual Canary Wharf command triggered")
+                    await event.reply("🏢 Generating Canary Wharf post...")
                     try:
                         await self._post_london_content()
-                        await event.reply("✅ London post sent!")
-                        logger.info("✅ Manual London post completed successfully")
+                        await event.reply("✅ Canary Wharf post sent!")
+                        logger.info("✅ Manual Canary Wharf post completed successfully")
                     except Exception as e:
                         error_msg = str(e)
-                        logger.error(f"❌ Manual London post error: {e}", exc_info=True)
+                        logger.error(f"❌ Manual Canary Wharf post error: {e}", exc_info=True)
                         await event.reply(f"❌ Error: {error_msg}\n\n💡 Check:\n- Is GROUP_USERNAME or GROUP_ID set?\n- Are you admin in the group?\n- Check logs for details")
                 elif text_lower == "uk":
                     command_handled = True
@@ -516,7 +576,29 @@ class ChannelHandler:
         last_morning_post_date = None
         last_evening_post_date = None
         
+        # Sequential scheduling state
+        sequential_services = [
+            ("status", None),  # status doesn't post, just reports
+            ("travel", self._post_evening_content),
+            ("travel morning", self._post_morning_content),
+            ("news", self._post_news_content),
+            ("tech", self._post_tech_content),
+            ("person", self._post_person_content),
+            ("ukraine", self._post_ukraine_news_content),
+            ("spider", self._post_spider_content),
+            ("quote", self._post_quote_content),
+            ("africa", self._post_africa_content),
+            ("canary", self._post_london_content),
+            ("uk", self._post_uk_content),
+            ("job", self._post_job_content),
+            ("weather", self._post_weather_content),
+        ]
+        sequential_last_run = {}  # Track when each service last ran
+        sequential_today_runs = {}  # Track services run today
+        
         logger.info("🔄 Scheduler loop started")
+        if self.sequential_mode:
+            logger.info(f"📅 Sequential mode: starting at {self.sequential_start_time}, every {self.sequential_interval} minutes")
         
         while True:
             try:
@@ -524,129 +606,174 @@ class ChannelHandler:
                 current_time = now.strftime("%H:%M")
                 today = now.date()
                 
-                # Check morning post
-                if current_time == self.morning_time:
-                    # Only post if we haven't posted today
-                    if last_morning_post_date != today:
-                        logger.info(f"⏰ Morning post time reached: {self.morning_time}")
-                        await self._post_morning_content()
-                        last_morning_post_date = today
-                        # Wait 1 minute to avoid duplicate posts
-                        await asyncio.sleep(60)
-                    else:
-                        logger.debug(f"⏰ Morning post already sent today at {self.morning_time}")
+                # Reset daily sequential tracking at midnight
+                if sequential_today_runs.get('date') != today:
+                    sequential_today_runs = {'date': today, 'services': []}
+                    logger.info(f"📅 New day detected, resetting sequential tracking")
                 
-                # Check evening post
-                elif current_time == self.evening_time:
-                    # Only post if we haven't posted today
-                    if last_evening_post_date != today:
-                        logger.info(f"⏰ Evening post time reached: {self.evening_time}")
-                        await self._post_evening_content()
-                        last_evening_post_date = today
-                        # Wait 1 minute to avoid duplicate posts
-                        await asyncio.sleep(60)
-                    else:
-                        logger.debug(f"⏰ Evening post already sent today at {self.evening_time}")
+                # Sequential scheduling mode
+                if self.sequential_mode:
+                    start_hour, start_min = map(int, self.sequential_start_time.split(":"))
+                    current_total_minutes = now.hour * 60 + now.minute
+                    start_total_minutes = start_hour * 60 + start_min
+                    
+                    # Check if we're past start time
+                    if current_total_minutes >= start_total_minutes:
+                        # Calculate which service should run now
+                        minutes_since_start = current_total_minutes - start_total_minutes
+                        service_index = minutes_since_start // self.sequential_interval
+                        
+                        if service_index < len(sequential_services):
+                            service_name, service_func = sequential_services[service_index]
+                            
+                            # Check if this service hasn't run today yet
+                            if service_name not in sequential_today_runs.get('services', []):
+                                # Check if it's time to run (at the exact interval)
+                                if minutes_since_start % self.sequential_interval == 0:
+                                    logger.info(f"📅 Sequential: Running service {service_index + 1}/{len(sequential_services)}: {service_name}")
+                                    
+                                    try:
+                                        if service_func:
+                                            await service_func()
+                                        else:
+                                            # Status doesn't post, just log
+                                            logger.info(f"✅ Sequential: {service_name} (status check)")
+                                        
+                                        sequential_today_runs['services'].append(service_name)
+                                        sequential_last_run[service_name] = now
+                                        logger.info(f"✅ Sequential: {service_name} completed")
+                                        
+                                        # Wait for next interval
+                                        await asyncio.sleep(60)
+                                    except Exception as e:
+                                        logger.error(f"❌ Sequential: Error running {service_name}: {e}", exc_info=True)
+                                        sequential_today_runs['services'].append(service_name)  # Mark as attempted
                 
-                # Check news posts (if news service is available)
-                if self.news_service:
-                    # Morning news at 8:00
-                    if current_time == self.news_morning_time:
-                        if not self.db.has_posted_news_today():
-                            logger.info(f"📰 Morning news time reached: {self.news_morning_time}")
-                            await self._post_news_content()
+                # Regular scheduling mode (if not sequential or as fallback)
+                if not self.sequential_mode:
+                    # Check morning post
+                    if current_time == self.morning_time:
+                        # Only post if we haven't posted today
+                        if last_morning_post_date != today:
+                            logger.info(f"⏰ Morning post time reached: {self.morning_time}")
+                            await self._post_morning_content()
+                            last_morning_post_date = today
+                            # Wait 1 minute to avoid duplicate posts
+                            await asyncio.sleep(60)
+                        else:
+                            logger.debug(f"⏰ Morning post already sent today at {self.morning_time}")
+                    
+                    # Check evening post
+                    elif current_time == self.evening_time:
+                        # Only post if we haven't posted today
+                        if last_evening_post_date != today:
+                            logger.info(f"⏰ Evening post time reached: {self.evening_time}")
+                            await self._post_evening_content()
+                            last_evening_post_date = today
+                            # Wait 1 minute to avoid duplicate posts
+                            await asyncio.sleep(60)
+                        else:
+                            logger.debug(f"⏰ Evening post already sent today at {self.evening_time}")
+                    
+                    # Check news posts (if news service is available)
+                    if self.news_service:
+                        # Morning news at 8:00
+                        if current_time == self.news_morning_time:
+                            if not self.db.has_posted_news_today():
+                                logger.info(f"📰 Morning news time reached: {self.news_morning_time}")
+                                await self._post_news_content()
+                                await asyncio.sleep(60)
+                        
+                        # Evening news at 19:00
+                        elif current_time == self.news_evening_time:
+                            if not self.db.has_posted_news_today():
+                                logger.info(f"📰 Evening news time reached: {self.news_evening_time}")
+                                await self._post_news_content()
+                                await asyncio.sleep(60)
+                    
+                    # Check person posts (if person service is available)
+                    if self.person_service:
+                        if current_time == self.person_time:
+                            person_posts_today = self.db.get_person_posts_today()
+                            if not person_posts_today:
+                                logger.info(f"👤 Person post time reached: {self.person_time}")
+                                await self._post_person_content()
+                                await asyncio.sleep(60)
+                    
+                    # Check tech posts (if tech service is available)
+                    if self.tech_service:
+                        if current_time == self.tech_time:
+                            tech_posts_today = self.db.get_tech_posts_today()
+                            if not tech_posts_today:
+                                logger.info(f"🔧 Tech post time reached: {self.tech_time}")
+                                await self._post_tech_content()
+                                await asyncio.sleep(60)
+                    
+                    # Check UK posts (if UK service is available)
+                    if self.uk_service:
+                        if current_time == self.uk_time:
+                            uk_posts_today = self.db.get_uk_posts_today()
+                            if not uk_posts_today:
+                                logger.info(f"🇬🇧 UK post time reached: {self.uk_time}")
+                                await self._post_uk_content()
+                                await asyncio.sleep(60)
+                    
+                    # Check London posts (if London service is available)
+                    if self.london_service:
+                        if current_time == self.london_time:
+                            london_posts_today = self.db.get_london_posts_today()
+                            if not london_posts_today:
+                                logger.info(f"🏢 Canary Wharf post time reached: {self.london_time}")
+                                await self._post_london_content()
+                                await asyncio.sleep(60)
+                    
+                    # Check spider posts (if spider service is available)
+                    if self.spider_service:
+                        if current_time == self.spider_time:
+                            spider_posts_today = self.db.get_spider_posts_today()
+                            if not spider_posts_today:
+                                logger.info(f"🕷️ Spider post time reached: {self.spider_time}")
+                                await self._post_spider_content()
+                                await asyncio.sleep(60)
+                    
+                    # Check quote posts (if quote service is available)
+                    if self.quote_service:
+                        if current_time == self.quote_time:
+                            quote_posts_today = self.db.get_phrase_posts_today()  # Still uses same DB method
+                            if not quote_posts_today:
+                                logger.info(f"💬 Quote post time reached: {self.quote_time}")
+                                await self._post_quote_content()
+                                await asyncio.sleep(60)
+                    
+                    # Check weather posts (if weather service is available)
+                    if self.weather_service:
+                        if current_time == self.weather_time:
+                            logger.info(f"🌤️ Weather post time reached: {self.weather_time}")
+                            await self._post_weather_content()
                             await asyncio.sleep(60)
                     
-                    # Evening news at 19:00
-                    elif current_time == self.news_evening_time:
-                        if not self.db.has_posted_news_today():
-                            logger.info(f"📰 Evening news time reached: {self.news_evening_time}")
-                            await self._post_news_content()
-                            await asyncio.sleep(60)
-                
-                # Check person posts (if person service is available)
-                if self.person_service:
-                    if current_time == self.person_time:
-                        person_posts_today = self.db.get_person_posts_today()
-                        if not person_posts_today:
-                            logger.info(f"👤 Person post time reached: {self.person_time}")
-                            await self._post_person_content()
-                            await asyncio.sleep(60)
-                
-                # Check tech posts (if tech service is available)
-                if self.tech_service:
-                    if current_time == self.tech_time:
-                        tech_posts_today = self.db.get_tech_posts_today()
-                        if not tech_posts_today:
-                            logger.info(f"🔧 Tech post time reached: {self.tech_time}")
-                            await self._post_tech_content()
-                            await asyncio.sleep(60)
-                
-                # Check UK posts (if UK service is available)
-                if self.uk_service:
-                    if current_time == self.uk_time:
-                        uk_posts_today = self.db.get_uk_posts_today()
-                        if not uk_posts_today:
-                            logger.info(f"🇬🇧 UK post time reached: {self.uk_time}")
-                            await self._post_uk_content()
-                            await asyncio.sleep(60)
-                
-                # Check London posts (if London service is available)
-                if self.london_service:
-                    if current_time == self.london_time:
-                        london_posts_today = self.db.get_london_posts_today()
-                        if not london_posts_today:
-                            logger.info(f"🇬🇧 London post time reached: {self.london_time}")
-                            await self._post_london_content()
-                            await asyncio.sleep(60)
-                
-                # Check spider posts (if spider service is available)
-                if self.spider_service:
-                    if current_time == self.spider_time:
-                        spider_posts_today = self.db.get_spider_posts_today()
-                        if not spider_posts_today:
-                            logger.info(f"🕷️ Spider post time reached: {self.spider_time}")
-                            await self._post_spider_content()
-                            await asyncio.sleep(60)
-                
-                # Check quote posts (if quote service is available)
-                if self.quote_service:
-                    if current_time == self.quote_time:
-                        quote_posts_today = self.db.get_phrase_posts_today()  # Still uses same DB method
-                        if not quote_posts_today:
-                            logger.info(f"💬 Quote post time reached: {self.quote_time}")
-                            await self._post_quote_content()
-                            await asyncio.sleep(60)
-                
-                # Check weather posts (if weather service is available)
-                if self.weather_service:
-                    if current_time == self.weather_time:
-                        logger.info(f"🌤️ Weather post time reached: {self.weather_time}")
-                        await self._post_weather_content()
-                        await asyncio.sleep(60)
-                
-                # Log every 5 minutes for debugging
-                if now.minute % 5 == 0 and now.second < 5:
-                    waiting_times = f"{self.morning_time} / {self.evening_time}"
-                    if self.news_service:
-                        waiting_times += f" / News: {self.news_morning_time} / {self.news_evening_time}"
-                    if self.job_service:
-                        waiting_times += f" / Jobs: {self.job_morning_time} / {self.job_evening_time}"
-                    if self.uk_service:
-                        waiting_times += f" / UK: {self.uk_time}"
-                    if self.london_service:
-                        waiting_times += f" / London: {self.london_time}"
-                    if self.spider_service:
-                        waiting_times += f" / Spider: {self.spider_time}"
-                    if self.person_service:
-                        waiting_times += f" / Person: {self.person_time}"
-                    if self.tech_service:
-                        waiting_times += f" / Tech: {self.tech_time}"
-                    if self.quote_service:
-                        waiting_times += f" / Quote: {self.quote_time}"
-                    if self.weather_service:
-                        waiting_times += f" / Weather: {self.weather_time}"
-                    logger.debug(f"🕐 Scheduler running... Current time: {current_time}, Waiting for: {waiting_times}")
+                    # Log every 5 minutes for debugging
+                    if now.minute % 5 == 0 and now.second < 5:
+                        waiting_times = f"{self.morning_time} / {self.evening_time}"
+                        if self.news_service:
+                            waiting_times += f" / News: {self.news_morning_time} / {self.news_evening_time}"
+                        if self.job_service:
+                            waiting_times += f" / Jobs: {self.job_morning_time} / {self.job_evening_time}"
+                        if self.uk_service:
+                            waiting_times += f" / UK: {self.uk_time}"
+                        if self.london_service:
+                            waiting_times += f" / Canary: {self.london_time}"
+                        if self.spider_service:
+                            waiting_times += f" / Spider: {self.spider_time}"
+                        if self.person_service:
+                            waiting_times += f" / Person: {self.person_time}"
+                        if self.tech_service:
+                            waiting_times += f" / Tech: {self.tech_time}"
+                        if self.quote_service:
+                            waiting_times += f" / Quote: {self.quote_time}"
+                        if self.weather_service:
+                            waiting_times += f" / Weather: {self.weather_time}"
+                        logger.debug(f"🕐 Scheduler running... Current time: {current_time}, Waiting for: {waiting_times}")
                 
                 # Check every minute
                 await asyncio.sleep(60)
@@ -929,8 +1056,13 @@ class ChannelHandler:
             # Format message
             message = self._format_ukraine_news_message(news_data)
             
-            # Post to group/channel (no image for news)
-            await self._post_to_channel(message, None, None, None)
+            # Ukrainian flag image URL
+            # Using flagcdn.com as primary source (more bot-friendly than Wikimedia)
+            ukraine_flag_url = "https://flagcdn.com/w1280/ua.png"
+            logger.info(f"🇺🇦 Preparing to post Ukraine news with flag image: {ukraine_flag_url}")
+            
+            # Post to group/channel with Ukrainian flag image
+            await self._post_to_channel(message, ukraine_flag_url, None, None)
             
             # Save to database
             self.db.record_ukraine_news_post(news_data)
@@ -1641,27 +1773,29 @@ class ChannelHandler:
         return message, inline_keyboard
     
     async def _post_london_content(self):
-        """Post London content."""
+        """Post Canary Wharf content with events."""
         if not self.london_service:
-            logger.warning("London service not available")
+            logger.warning("Canary Wharf service not available")
             return
         
         try:
             # Get used topics to avoid repetition
             used_topics = []  # Could track topics if needed
             
-            # Generate London content
+            # Generate Canary Wharf content
             content = self.london_service.generate_london_post(used_topics)
             
             if not content:
-                logger.error("Failed to generate London content")
+                logger.error("Failed to generate Canary Wharf content")
                 return
             
             # Format message
             message, inline_keyboard = self._format_london_message(content)
             
-            # Get image for London
-            image_url = await self._get_country_image("London")
+            # Get image for Canary Wharf using the search term from content
+            image_search_term = content.get("image_search_term", "Canary Wharf London skyline")
+            logger.info(f"🖼️ Fetching image for: {image_search_term}")
+            image_url = await self._get_country_image(image_search_term)
             
             # Post to group/channel with inline keyboard
             await self._post_to_channel(message, image_url, None, None, inline_keyboard)
@@ -1670,50 +1804,35 @@ class ChannelHandler:
             self.db.record_london_post(content)
             
         except Exception as e:
-            logger.error(f"Error posting London content: {e}", exc_info=True)
+            logger.error(f"Error posting Canary Wharf content: {e}", exc_info=True)
     
     def _format_london_message(self, content: dict) -> tuple:
-        """Format London post message. Returns (message_text, inline_keyboard)."""
-        places = content.get("places", [])
-        london_fact = content.get("london_fact", "")
-        politician_fact = content.get("politician_fact", "")
+        """Format Canary Wharf post message with events. Returns (message_text, inline_keyboard)."""
+        events = content.get("events", [])
+        canary_wharf_fact = content.get("canary_wharf_fact", "")
         resource_link = content.get("resource_link", "")
         
-        message = "🇬🇧 **London**\n\n"
+        message = "🏢 **Canary Wharf, London**\n\n"
         
-        # Places in London
-        if places:
-            message += "📍 **Places to visit:**\n"
-            for place in places[:5]:  # Max 5 places
-                place_name = place.get("name", "")
-                place_type = place.get("type", "")
-                if place_name:
-                    type_emoji = {
-                        "museum": "🏛️",
-                        "pub": "🍺",
-                        "street": "🛣️",
-                        "music venue": "🎵",
-                        "landmark": "🏗️",
-                        "park": "🌳"
-                    }.get(place_type.lower(), "📍")
-                    message += f"{type_emoji} {place_name}"
-                    if place_type:
-                        message += f" ({place_type})"
+        # Upcoming events
+        if events:
+            message += "🎉 **Upcoming Events:**\n"
+            for event in events[:2]:  # Max 2 events
+                event_name = event.get("name", "")
+                event_date = event.get("date", "")
+                event_desc = event.get("description", "")
+                if event_name:
+                    message += f"🗓️ **{event_name}**"
+                    if event_date:
+                        message += f" ({event_date})"
                     message += "\n"
+                    if event_desc:
+                        message += f"   {event_desc}\n"
             message += "\n"
         
-        # Facts
-        facts = []
-        if london_fact:
-            facts.append(f"🏛️ **London:** {london_fact}")
-        if politician_fact:
-            facts.append(f"👔 **British Politician:** {politician_fact}")
-        
-        if facts:
-            message += "💡 **Facts:**\n"
-            for fact in facts:
-                message += f"{fact}\n"
-            message += "\n"
+        # Fact about Canary Wharf
+        if canary_wharf_fact:
+            message += f"💡 **Did you know?**\n{canary_wharf_fact}\n\n"
         
         # Source link
         if resource_link:
@@ -1728,12 +1847,12 @@ class ChannelHandler:
                     domain = resource_link.replace("https://", "").replace("http://", "").replace("www.", "").split("/")[0]
                 if len(domain) > 30:
                     domain = domain[:27] + "..."
-                message += f"**Source:** [{domain}]({resource_link})\n\n"
+                message += f"🌐 **More info:** [{domain}]({resource_link})\n\n"
             except:
-                message += f"**Source:** {resource_link}\n\n"
+                message += f"🌐 **More info:** {resource_link}\n\n"
         
         # Tags
-        message += "#London #UK #Travel\n"
+        message += "#CanaryWharf\n"
         
         # Create inline keyboard for source
         inline_keyboard = None
@@ -1741,7 +1860,7 @@ class ChannelHandler:
             button_link = resource_link
             if not button_link.startswith(("http://", "https://")):
                 button_link = "https://" + button_link
-            inline_keyboard = [[Button.url("Source", button_link)]]
+            inline_keyboard = [[Button.url("Visit Website", button_link)]]
         
         return message, inline_keyboard
     
@@ -1959,6 +2078,8 @@ class ChannelHandler:
             ❄️ Ukraine
             Bila Tserkva: 6/-1°C
             Poltava: 5/-2°C
+            
+            🌐 Full forecast: openweathermap.org
         """
         weather_data = content.get("weather", [])
         date = content.get("date", "")
@@ -1978,6 +2099,8 @@ class ChannelHandler:
         
         # Group cities by country (with emoji)
         by_country = {}
+        city_links = {}  # Store city -> OpenWeather link mapping
+        
         for city_weather in weather_data:
             city = city_weather.get("city", "")
             country = city_weather.get("country", "")
@@ -1993,6 +2116,11 @@ class ChannelHandler:
                     "temp_day": temp_day,
                     "temp_night": temp_night
                 })
+                
+                # Generate OpenWeather link for each city
+                # Format: city name with spaces replaced by dashes, lowercase
+                city_slug = city.lower().replace(" ", "-")
+                city_links[city] = f"https://openweathermap.org/city/{city_slug}"
         
         # Format blocks by country with weather emoji
         for country, data in by_country.items():
@@ -2012,14 +2140,21 @@ class ChannelHandler:
             
             message += "\n"
         
-        return message.strip()
+        # Add OpenWeather links at the end
+        message += "🌐 **Full forecast:**\n"
+        message += "[OpenWeatherMap](https://openweathermap.org)\n"
+        
+        # Add tag
+        message += "\n#Weather"
+        
+        return message
     
     def _format_job_message(self, content: dict) -> tuple:
         """Format job vacancies message. Returns (message_text, inline_keyboard)."""
         vacancies = content.get("vacancies", [])
         
         message = "💼 **Job Vacancies - Canary Wharf, London**\n\n"
-        message += "✨ **Your dream job is waiting for you!** Every opportunity brings you closer to your goals. Take the first step and apply today. You've got this! 💪\n\n"
+        message += "✨ Your dream job is waiting! 💪\n\n"
         
         # Format each vacancy
         buttons = []
@@ -2042,12 +2177,29 @@ class ChannelHandler:
             message += f"💰 **Salary:** {salary}\n"
             
             if description:
-                message += f"\n📝 {description}\n"
+                # Shorten "As a..." phrase - make it 3x shorter
+                desc_lines = description.split(".")
+                if desc_lines and desc_lines[0].strip():
+                    # Take only first sentence and shorten it
+                    first_sentence = desc_lines[0].strip()
+                    # If it starts with "As a", make it very concise
+                    if first_sentence.lower().startswith("as a"):
+                        # Extract role and key responsibility only
+                        words = first_sentence.split()
+                        # Aim for ~1/3 of original length
+                        max_words = max(8, len(words) // 3)
+                        shortened = " ".join(words[:max_words])
+                        if not shortened.endswith(('.', '!', '?')):
+                            shortened += "."
+                        message += f"\n📝 {shortened}\n"
+                    else:
+                        # For non "As a" descriptions, keep first sentence
+                        message += f"\n📝 {first_sentence}.\n"
             
             if requirements:
-                message += "\n**Requirements:**\n"
-                for req in requirements[:5]:  # Max 5 requirements
-                    message += f"• {req}\n"
+                # Combine all requirements into ONE sentence
+                req_text = ", ".join(requirements[:3])  # Use max 3 requirements
+                message += f"\n**Requirements:** {req_text}\n"
             
             # Add LinkedIn link in text and button
             if linkedin_url:
@@ -2073,11 +2225,8 @@ class ChannelHandler:
             
             message += "\n" + "─" * 30 + "\n\n"
         
-        # Motivational closing
-        message += "🌟 **Remember:** The best time to start is now. Your dream job is just one application away. Believe in yourself and take action! 🚀\n\n"
-        
-        # Tags
-        message += "#Jobs #London #CanaryWharf #DevOps #MLOps #SRE #SystemEngineer\n"
+        # Single tag related to jobs
+        message += "#Jobs\n"
         
         # Create inline keyboard with all LinkedIn buttons
         inline_keyboard = buttons if buttons else None
@@ -2831,8 +2980,12 @@ class ChannelHandler:
                 logger.info(f"📸 Downloading image from: {image_url[:100]}...")
                 try:
                     # Download and send image with caption
+                    # Add User-Agent header to avoid 403 errors from image hosts
+                    headers = {
+                        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+                    }
                     async with httpx.AsyncClient() as client:
-                        response = await client.get(image_url, timeout=10.0)
+                        response = await client.get(image_url, headers=headers, timeout=10.0, follow_redirects=True)
                         response.raise_for_status()
                         
                         logger.info(f"✅ Image downloaded, size: {len(response.content)} bytes")
@@ -2878,7 +3031,8 @@ class ChannelHandler:
                         os.unlink(tmp_path)
                         logger.debug("🗑️ Temp file deleted")
                 except Exception as img_error:
-                    logger.error(f"❌ Error sending image: {img_error}", exc_info=True)
+                    logger.error(f"❌ Error sending image from {image_url[:100]}: {img_error}", exc_info=True)
+                    logger.info(f"📝 Image error details: {type(img_error).__name__}: {str(img_error)}")
                     logger.info("📝 Falling back to text-only message")
                     # Fallback to text only
                     await self.client.send_message(
@@ -2887,6 +3041,7 @@ class ChannelHandler:
                         parse_mode='md',
                         buttons=inline_keyboard
                     )
+                    logger.warning("⚠️ Posted without image due to download/send failure")
             else:
                 logger.info("📝 No image URL, sending text-only message")
                 # Send text only

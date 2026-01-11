@@ -8,8 +8,8 @@ from shared_services.budget_guard import BudgetGuard
 class Suggester:
     """Class for generating response options."""
     
-    # Response templates (if LLM is disabled)
-    TEMPLATES = [
+    # Generic response templates (if LLM is disabled) - for general contacts
+    GENERIC_TEMPLATES = [
         [
             "I can, but a bit later. What time works for you?",
             "I'm busy today, but I can do it tomorrow or on weekends. What's better for you?",
@@ -27,6 +27,25 @@ class Suggester:
         ]
     ]
     
+    # Wife-to-husband templates (for eugen_parasochka_pl)
+    WIFE_TEMPLATES = [
+        [
+            "Of course, my love! ❤️ I'll do it as soon as I can. What time would be best for you?",
+            "Sure, darling! 😊 I'm a bit busy now, but I'll handle it soon. Love you!",
+            "Yes, sweetheart! Just give me a little time, okay? 💕"
+        ],
+        [
+            "Got your message, honey! 💖 I'll take care of it and let you know.",
+            "Saw this, my dear! I'll get back to you shortly. Miss you! 😘",
+            "Thanks for writing, love! I'll think about it and reply soon. ❤️"
+        ],
+        [
+            "Absolutely, my love! 😊 When do you want to discuss it?",
+            "Of course I'll help you, darling! 💕 Just tell me what you need.",
+            "Sure thing, sweetheart! Let's talk about it. Love you! ❤️"
+        ]
+    ]
+    
     def __init__(self, budget_guard: BudgetGuard):
         self.budget_guard = budget_guard
         self.llm_enabled = os.getenv("LLM_ENABLED", "off").lower() == "on"
@@ -37,7 +56,8 @@ class Suggester:
     def generate_options(
         self,
         incoming_text: str,
-        context_messages: Optional[List[str]] = None
+        context_messages: Optional[List[str]] = None,
+        sender_username: Optional[str] = None
     ) -> List[str]:
         """
         Generate 3 response options.
@@ -45,6 +65,7 @@ class Suggester:
         Args:
             incoming_text: Incoming message text
             context_messages: Context of previous messages (optional)
+            sender_username: Username of the sender (to determine tone/style)
         
         Returns:
             List of 3 response options
@@ -52,19 +73,26 @@ class Suggester:
         can_use, reason = self.budget_guard.can_use_llm()
         
         if can_use and self.llm_enabled and self.openai_api_key:
-            return self._generate_with_llm(incoming_text, context_messages)
+            return self._generate_with_llm(incoming_text, context_messages, sender_username)
         else:
-            return self._generate_with_templates(incoming_text)
+            return self._generate_with_templates(incoming_text, sender_username)
     
-    def _generate_with_templates(self, incoming_text: str) -> List[str]:
+    def _generate_with_templates(self, incoming_text: str, sender_username: Optional[str] = None) -> List[str]:
         """Generate responses from templates."""
+        # Check if sender is husband (eugen_parasochka_pl)
+        is_husband = sender_username and sender_username.lower() == "eugen_parasochka_pl"
+        
+        # Select appropriate templates
+        templates = self.WIFE_TEMPLATES if is_husband else self.GENERIC_TEMPLATES
+        
         # Simple random template selection
-        return random.choice(self.TEMPLATES).copy()
+        return random.choice(templates).copy()
     
     def _generate_with_llm(
         self,
         incoming_text: str,
-        context_messages: Optional[List[str]] = None
+        context_messages: Optional[List[str]] = None,
+        sender_username: Optional[str] = None
     ) -> List[str]:
         """Generate responses via OpenAI API."""
         try:
@@ -72,14 +100,39 @@ class Suggester:
             
             client = OpenAI(api_key=self.openai_api_key)
             
-            # Build prompt
+            # Check if sender is husband (eugen_parasochka_pl)
+            is_husband = sender_username and sender_username.lower() == "eugen_parasochka_pl"
+            
+            # Build prompt based on recipient
             context = ""
             if context_messages:
                 context = "\n".join([
                     f"Previous messages:\n" + "\n".join(context_messages[-5:])
                 ])
             
-            prompt = f"""You help reply to Telegram messages in a friendly but not categorical style.
+            if is_husband:
+                # Wife responding to husband - loving, warm tone
+                system_prompt = "You are a loving wife responding to her husband. Your tone is warm, affectionate, and supportive."
+                prompt = f"""You are helping a wife reply to messages from her husband (Eugen) in a loving and caring style.
+
+Rules:
+- Be warm, affectionate, and loving
+- Use terms of endearment (darling, honey, sweetheart, my love)
+- Add heart emojis occasionally (❤️, 💕, 😘, 😊)
+- Always be supportive and understanding
+- Show care and concern for his needs
+- Keep responses sweet but natural (2-3 sentences max)
+- Never be cold or distant
+
+{context}
+
+Incoming message from husband: "{incoming_text}"
+
+Create 3 loving response options from wife to husband. Each option on a separate line, without numbering."""
+            else:
+                # Generic friendly style for other contacts
+                system_prompt = "You help form friendly replies to messages."
+                prompt = f"""You help reply to Telegram messages in a friendly but not categorical style.
 
 Rules:
 - Never say a categorical "no"
@@ -96,7 +149,7 @@ Create 3 response options in this style. Each option on a separate line, without
             response = client.chat.completions.create(
                 model=self.openai_model,
                 messages=[
-                    {"role": "system", "content": "You help form friendly replies to messages."},
+                    {"role": "system", "content": system_prompt},
                     {"role": "user", "content": prompt}
                 ],
                 # Some newer models only support default temperature (1),
@@ -117,12 +170,15 @@ Create 3 response options in this style. Each option on a separate line, without
             self.budget_guard.record_llm_call(tokens_used, estimated_cost)
             
             # If we got less than 3 options, fill with templates
+            is_husband = sender_username and sender_username.lower() == "eugen_parasochka_pl"
+            templates = self.WIFE_TEMPLATES if is_husband else self.GENERIC_TEMPLATES
+            
             while len(options) < 3:
-                options.append(random.choice(self.TEMPLATES[0]))
+                options.append(random.choice(templates[0]))
             
             return options[:3]
             
         except Exception as e:
             # If LLM error, return templates
             print(f"LLM error: {e}")
-            return self._generate_with_templates(incoming_text)
+            return self._generate_with_templates(incoming_text, sender_username)

@@ -60,7 +60,7 @@ ALL_SERVICE_COMMANDS = [
     "spider",
     "quote",
     "africa",
-    "london",
+    "canary",           # Canary Wharf posts (was "london")
     "uk",
     "job",
     "weather"

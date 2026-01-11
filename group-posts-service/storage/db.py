@@ -84,9 +84,16 @@ class Database:
                 post_type TEXT NOT NULL,  -- 'morning' or 'evening'
                 topic TEXT NOT NULL,
                 content TEXT,  -- JSON content
-                posted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                posted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                trigger_type TEXT DEFAULT 'auto'  -- 'auto' or 'manual'
             )
         """)
+        
+        # Add trigger_type column if it doesn't exist (for existing databases)
+        try:
+            cursor.execute("ALTER TABLE channel_posts ADD COLUMN trigger_type TEXT DEFAULT 'auto'")
+        except sqlite3.OperationalError:
+            pass  # Column already exists
         
         # Track countries that have been used for images (to avoid repetition)
         cursor.execute("""
@@ -110,9 +117,16 @@ class Database:
             CREATE TABLE IF NOT EXISTS ukraine_news_posts (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 content TEXT,  -- JSON content
-                posted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                posted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                trigger_type TEXT DEFAULT 'auto'  -- 'auto' or 'manual'
             )
         """)
+        
+        # Add trigger_type column if it doesn't exist
+        try:
+            cursor.execute("ALTER TABLE ukraine_news_posts ADD COLUMN trigger_type TEXT DEFAULT 'auto'")
+        except sqlite3.OperationalError:
+            pass
         
         # Spider posts table
         cursor.execute("""
@@ -120,9 +134,16 @@ class Database:
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 spider_name TEXT NOT NULL,
                 content TEXT,  -- JSON content
-                posted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                posted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                trigger_type TEXT DEFAULT 'auto'  -- 'auto' or 'manual'
             )
         """)
+        
+        # Add trigger_type column if it doesn't exist
+        try:
+            cursor.execute("ALTER TABLE spider_posts ADD COLUMN trigger_type TEXT DEFAULT 'auto'")
+        except sqlite3.OperationalError:
+            pass
         
         # Track spiders to avoid repetition
         cursor.execute("""
@@ -139,9 +160,16 @@ class Database:
                 quote_text TEXT NOT NULL,
                 author_name TEXT,
                 content TEXT,  -- JSON content
-                posted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                posted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                trigger_type TEXT DEFAULT 'auto'  -- 'auto' or 'manual'
             )
         """)
+        
+        # Add trigger_type column if it doesn't exist
+        try:
+            cursor.execute("ALTER TABLE quote_posts ADD COLUMN trigger_type TEXT DEFAULT 'auto'")
+        except sqlite3.OperationalError:
+            pass
         
         # Track phrases to avoid repetition
         cursor.execute("""
@@ -165,9 +193,16 @@ class Database:
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 country TEXT NOT NULL,
                 content TEXT,  -- JSON content
-                posted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                posted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                trigger_type TEXT DEFAULT 'auto'  -- 'auto' or 'manual'
             )
         """)
+        
+        # Add trigger_type column if it doesn't exist
+        try:
+            cursor.execute("ALTER TABLE africa_posts ADD COLUMN trigger_type TEXT DEFAULT 'auto'")
+        except sqlite3.OperationalError:
+            pass
         
         # Track African countries to avoid repetition
         cursor.execute("""
@@ -182,18 +217,32 @@ class Database:
             CREATE TABLE IF NOT EXISTS london_posts (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 content TEXT,  -- JSON content
-                posted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                posted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                trigger_type TEXT DEFAULT 'auto'  -- 'auto' or 'manual'
             )
         """)
+        
+        # Add trigger_type column if it doesn't exist
+        try:
+            cursor.execute("ALTER TABLE london_posts ADD COLUMN trigger_type TEXT DEFAULT 'auto'")
+        except sqlite3.OperationalError:
+            pass
         
         # UK posts table
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS uk_posts (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 content TEXT,  -- JSON content
-                posted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                posted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                trigger_type TEXT DEFAULT 'auto'  -- 'auto' or 'manual'
             )
         """)
+        
+        # Add trigger_type column if it doesn't exist
+        try:
+            cursor.execute("ALTER TABLE uk_posts ADD COLUMN trigger_type TEXT DEFAULT 'auto'")
+        except sqlite3.OperationalError:
+            pass
         
         # Track UK cities to avoid repetition
         cursor.execute("""
@@ -216,9 +265,16 @@ class Database:
             CREATE TABLE IF NOT EXISTS job_posts (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 content TEXT,  -- JSON content
-                posted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                posted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                trigger_type TEXT DEFAULT 'auto'  -- 'auto' or 'manual'
             )
         """)
+        
+        # Add trigger_type column if it doesn't exist
+        try:
+            cursor.execute("ALTER TABLE job_posts ADD COLUMN trigger_type TEXT DEFAULT 'auto'")
+        except sqlite3.OperationalError:
+            pass
         
         # Track job companies to avoid repetition
         cursor.execute("""
@@ -253,6 +309,11 @@ class Database:
         except sqlite3.OperationalError:
             pass  # Column already exists
         
+        try:
+            cursor.execute("ALTER TABLE person_posts ADD COLUMN trigger_type TEXT DEFAULT 'auto'")
+        except sqlite3.OperationalError:
+            pass  # Column already exists
+        
         # Track persons to avoid repetition
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS persons (
@@ -273,6 +334,12 @@ class Database:
                 posted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         """)
+        
+        # Add trigger_type column to tech_posts if it doesn't exist
+        try:
+            cursor.execute("ALTER TABLE tech_posts ADD COLUMN trigger_type TEXT DEFAULT 'auto'")
+        except sqlite3.OperationalError:
+            pass  # Column already exists
         
         # Track tech devices to avoid repetition
         cursor.execute("""

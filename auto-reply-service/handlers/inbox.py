@@ -122,8 +122,8 @@ class InboxHandler:
         # Get context (recent messages)
         context = await self._get_context(user_id)
         
-        # Generate 3 response options
-        options = self.suggester.generate_options(text, context)
+        # Generate 3 response options (pass username to determine tone/style)
+        options = self.suggester.generate_options(text, context, sender_username=username)
         
         # Save card to database
         self.db.create_card(

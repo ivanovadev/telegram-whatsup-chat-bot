@@ -16,7 +16,7 @@ from content.quote_content import QuoteContentGenerator
 from content.africa_content import AfricaContentGenerator
 from content.london_content import LondonContentGenerator
 from content.uk_content import UKContentGenerator
-from content.job_content import JobContentGenerator
+from services.job_content import JobContentGenerator
 from content.weather_content import WeatherContentGenerator
 from services.channel_handler import ChannelHandler
 
@@ -134,16 +134,20 @@ async def main():
     await budget_guard.check_and_alert(client)
     
     print("✅ Group Posts Service started! (Dev Environment)")
-    print(f"📢 Morning posts at: {channel_handler.morning_time}")
-    print(f"📢 Evening posts at: {channel_handler.evening_time}")
-    print(f"📰 News posts at: {channel_handler.news_morning_time} and {channel_handler.news_evening_time}")
-    print(f"💼 Job posts at: {channel_handler.job_morning_time} and {channel_handler.job_evening_time}")
-    print(f"🇬🇧 UK posts at: {channel_handler.uk_time}")
-    print(f"🇬🇧 London posts at: {channel_handler.london_time}")
-    print(f"🕷️ Spider posts at: {channel_handler.spider_time}")
-    print(f"👤 Person posts at: {channel_handler.person_time}")
-    print(f"🔧 Tech posts at: {channel_handler.tech_time}")
-    print(f"🌤️ Weather posts at: {channel_handler.weather_time}")
+    print("📅 Sequential Morning Schedule (10-minute intervals):")
+    print(f"   08:10 - 📢 Travel (evening)")
+    print(f"   08:20 - 🌅 Travel (morning)")
+    print(f"   08:30 - 📰 News")
+    print(f"   08:40 - 🔧 Tech")
+    print(f"   08:50 - 👤 Person")
+    print(f"   09:00 - 🇺🇦 Ukraine")
+    print(f"   09:10 - 🕷️ Spider")
+    print(f"   09:20 - 💬 Quote")
+    print(f"   09:30 - 🌍 Africa")
+    print(f"   09:40 - 🏢 Canary Wharf")
+    print(f"   09:50 - 🇬🇧 UK")
+    print(f"   10:00 - 💼 Job")
+    print(f"   10:10 - 🌤️ Weather")
     
     # Run bot
     await client.run_until_disconnected()

@@ -1,5 +1,6 @@
 """Service for fetching country images."""
 import os
+import asyncio
 import httpx
 import logging
 from typing import Optional
@@ -37,24 +38,28 @@ class ImageService:
         if not self.unsplash_access_key:
             logger.debug("Unsplash API key not set, skipping image fetch")
             return None
-            
-        try:
-            async with httpx.AsyncClient() as client:
-                url = "https://api.unsplash.com/search/photos"
-                # Add keywords to prefer colorful images
-                params = {
-                    "query": f"{country_name} landscape travel colorful vibrant",
-                    "per_page": 10,  # Get more results to filter out B&W
-                    "orientation": "landscape",
-                    "order_by": "relevance"  # Get most relevant results
-                }
-                headers = {
-                    "Authorization": f"Client-ID {self.unsplash_access_key}"
-                }
-                
-                response = await client.get(url, params=params, headers=headers, timeout=10.0)
-                response.raise_for_status()
-                data = response.json()
+        
+        max_retries = 3
+        retry_delay = 1  # seconds
+        
+        for attempt in range(max_retries):
+            try:
+                async with httpx.AsyncClient() as client:
+                    url = "https://api.unsplash.com/search/photos"
+                    # Add keywords to prefer colorful images
+                    params = {
+                        "query": f"{country_name} landscape travel colorful vibrant",
+                        "per_page": 10,  # Get more results to filter out B&W
+                        "orientation": "landscape",
+                        "order_by": "relevance"  # Get most relevant results
+                    }
+                    headers = {
+                        "Authorization": f"Client-ID {self.unsplash_access_key}"
+                    }
+                    
+                    response = await client.get(url, params=params, headers=headers, timeout=10.0)
+                    response.raise_for_status()
+                    data = response.json()
                 
                 if data.get("results") and len(data["results"]) > 0:
                     # Filter out black and white images by checking color saturation
@@ -100,15 +105,33 @@ class ImageService:
                     image_url = data["results"][0]["urls"]["regular"]
                     logger.info(f"📸 Using first image: {image_url[:100]}...")
                     return image_url
-                
-        except httpx.HTTPStatusError as e:
-            if e.response.status_code == 401:
-                logger.warning("Unsplash API key invalid or expired. Posts will work without images.")
-            else:
-                logger.warning(f"Unsplash API error: {e}. Posts will work without images.")
-        except Exception as e:
-            logger.warning(f"Error fetching from Unsplash: {e}. Posts will work without images.")
+                    
+            except httpx.HTTPStatusError as e:
+                if e.response.status_code == 401:
+                    logger.warning("❌ Unsplash API key invalid or expired. Posts will work without images.")
+                    return None  # No retry for auth errors
+                elif e.response.status_code == 429:
+                    logger.warning(f"⚠️ Unsplash API rate limit hit (attempt {attempt + 1}/{max_retries})")
+                    if attempt < max_retries - 1:
+                        await asyncio.sleep(retry_delay * (attempt + 1))  # Exponential backoff
+                        continue
+                else:
+                    logger.warning(f"⚠️ Unsplash API error {e.response.status_code} (attempt {attempt + 1}/{max_retries}): {e}")
+                    if attempt < max_retries - 1:
+                        await asyncio.sleep(retry_delay)
+                        continue
+            except httpx.TimeoutException as e:
+                logger.warning(f"⚠️ Unsplash API timeout (attempt {attempt + 1}/{max_retries}): {e}")
+                if attempt < max_retries - 1:
+                    await asyncio.sleep(retry_delay)
+                    continue
+            except Exception as e:
+                logger.warning(f"⚠️ Error fetching from Unsplash (attempt {attempt + 1}/{max_retries}): {e}")
+                if attempt < max_retries - 1:
+                    await asyncio.sleep(retry_delay)
+                    continue
         
+        logger.warning(f"❌ Failed to fetch image for {country_name} after {max_retries} attempts. Posts will work without images.")
         return None
     
     def _get_placeholder_url(self, country_name: str) -> Optional[str]:

@@ -1,4 +1,4 @@
-"""Generate content for London posts."""
+"""Generate content for Canary Wharf posts."""
 import os
 import logging
 import random
@@ -10,10 +10,10 @@ logger = logging.getLogger(__name__)
 
 
 class LondonContentGenerator:
-    """Generate London travel information."""
+    """Generate Canary Wharf travel information and events."""
     
     def __init__(self, budget_guard):
-        """Initialize London content generator."""
+        """Initialize Canary Wharf content generator."""
         self.budget_guard = budget_guard
         self.openai_api_key = os.getenv("OPENAI_API_KEY", "")
         self.openai_model = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
@@ -23,10 +23,10 @@ class LondonContentGenerator:
             self.client = OpenAI(api_key=self.openai_api_key)
         else:
             self.client = None
-            logger.warning("LLM disabled for London content")
+            logger.warning("LLM disabled for Canary Wharf content")
     
     def generate_london_post(self, used_topics: List[str] = None) -> Optional[Dict]:
-        """Generate London post."""
+        """Generate Canary Wharf post with events."""
         used_topics = used_topics or []
         
         if self.client and self.llm_enabled:
@@ -35,49 +35,59 @@ class LondonContentGenerator:
             return self._generate_template(used_topics)
     
     def _generate_with_llm(self, used_topics: List[str]) -> Optional[Dict]:
-        """Generate London content using LLM."""
+        """Generate Canary Wharf content using LLM."""
         try:
             current_date = datetime.now().strftime("%Y-%m-%d")
+            current_month = datetime.now().strftime("%B %Y")
             
             used_context = ""
             if used_topics:
                 used_context = f"\n\nAvoid topics that were recently covered: {', '.join(used_topics[-5:])}"
             
-            prompt = f"""Generate information about London, UK.
+            prompt = f"""Generate information about Canary Wharf district in London, UK.
+
+CRITICAL: Focus ONLY on Canary Wharf district - the business and shopping district in East London, including:
+- Dog Island (West India Quay area)
+- Docklands area
+- Thames riverside
+- Modern architecture and business towers
 
 Requirements:
-1. Places in London to visit: 3-5 specific places (museums, pubs, streets, music venues, landmarks, parks, etc.)
-2. Fact about London: 1 interesting fact about London
-3. Fact about British politician: 1 interesting fact about a famous British politician
+1. Upcoming events in Canary Wharf: 1-2 REAL upcoming events happening in {current_month} or next month
+   - Check for real events at Canary Wharf (markets, exhibitions, performances, festivals, business events, etc.)
+   - Include event name, date (if known), and brief description
+   - If no specific events known, mention general recurring events (weekend markets, Thames Festival events, etc.)
+2. Fact about Canary Wharf: 1 interesting fact specifically about Canary Wharf district or Docklands
+3. Include photo search term for Canary Wharf district
 
 Format as JSON:
 {{
-  "places": [
-    {{"name": "Place name", "type": "museum/pub/street/music venue/landmark/park/etc"}},
-    {{"name": "Place name", "type": "museum/pub/street/music venue/landmark/park/etc"}},
-    {{"name": "Place name", "type": "museum/pub/street/music venue/landmark/park/etc"}}
+  "events": [
+    {{"name": "Event name", "date": "Date or 'Weekly' or 'Monthly'", "description": "Brief description of the event"}},
+    {{"name": "Event name", "date": "Date or time period", "description": "Brief description"}}
   ],
-  "london_fact": "Interesting fact about London",
-  "politician_fact": "Interesting fact about a famous British politician",
-  "resource_link": "https://wikipedia.org/wiki/London or travel resource URL"
+  "canary_wharf_fact": "Interesting fact specifically about Canary Wharf district or its history",
+  "resource_link": "https://canarywharf.com or https://wikipedia.org/wiki/Canary_Wharf",
+  "image_search_term": "Canary Wharf London skyline" or "Canary Wharf district" or "Dog Island Canary Wharf"
 }}
 
 IMPORTANT:
-- All information must be REAL and ACCURATE
-- Places should be real and well-known
-- Facts should be interesting and factual
-- Include resource link
-- Current date: {current_date}{used_context}
+- All information must be REAL and ACCURATE about Canary Wharf district specifically
+- Events should be upcoming or regular recurring events in Canary Wharf
+- Facts should be about Canary Wharf, not general London
+- Include specific, accurate information
+- Photo search term should help find Canary Wharf district images
+- Current date: {current_date} ({current_month}){used_context}
 
 Return ONLY valid JSON, no additional text."""
 
             response = self.client.chat.completions.create(
                 model=self.openai_model,
                 messages=[
-                    {"role": "system", "content": "You are a travel writer specializing in London. Generate accurate information about London places and facts. Always return valid JSON only, no additional text."},
+                    {"role": "system", "content": "You are an events specialist for Canary Wharf, London's business and shopping district in Docklands. Generate accurate information about Canary Wharf events and facts. Focus specifically on the Canary Wharf district, not general London. Always return valid JSON only, no additional text."},
                     {"role": "user", "content": prompt}
                 ],
-                max_completion_tokens=600,
+                max_completion_tokens=800,
                 response_format={"type": "json_object"}
             )
             
@@ -126,15 +136,13 @@ Return ONLY valid JSON, no additional text."""
             return self._generate_template(used_topics)
     
     def _generate_template(self, used_topics: List[str]) -> Dict:
-        """Generate template London content when LLM unavailable."""
+        """Generate template Canary Wharf content when LLM unavailable."""
         return {
-            "places": [
-                {"name": "British Museum", "type": "museum"},
-                {"name": "The Shard", "type": "landmark"},
-                {"name": "Camden Market", "type": "street"},
-                {"name": "Hyde Park", "type": "park"}
+            "events": [
+                {"name": "Canary Wharf Winter Lights", "date": "January-February", "description": "Annual light art installations across the estate."},
+                {"name": "Weekend Market at Jubilee Place", "date": "Every Saturday", "description": "Local artisan market with food and crafts."}
             ],
-            "london_fact": "London has over 170 museums.",
-            "politician_fact": "Winston Churchill was Prime Minister during WWII.",
-            "resource_link": "https://en.wikipedia.org/wiki/London"
+            "canary_wharf_fact": "Canary Wharf was named after the cargo trade with the Canary Islands, and One Canada Square was the UK's tallest building from 1991 to 2012.",
+            "resource_link": "https://canarywharf.com",
+            "image_search_term": "Canary Wharf London skyline"
         }

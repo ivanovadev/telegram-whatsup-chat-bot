@@ -1,7 +1,6 @@
 # Group Posts Service - Testing Guide
 
-> **⚠️ IMPORTANT:** Current tests only verify that commands are SENT, not that they work!  
-> See [PROBLEMS_SUMMARY.md](PROBLEMS_SUMMARY.md) for issues and [TESTING_ISSUES.md](TESTING_ISSUES.md) for detailed analysis.
+> **✅ NEW:** Content validation tests added! See [test_content_validation.py](#content-validation-tests)
 
 > **Note:** All test commands should be run from the `tests/` directory.
 
@@ -25,11 +24,10 @@ This directory contains test scripts for the group-posts-service.
 ### Test Scripts
 - **`test_services.py`** - Main test script that sends commands to the bot
 - **`test_services.sh`** - Shell wrapper that activates venv and runs tests
+- **`test_content_validation.py`** - ✨ NEW: Validates content to prevent regressions
 
 ### Documentation
 - **`README.md`** - This file, testing guide
-- **`PROBLEMS_SUMMARY.md`** - Quick summary of test issues ⚠️
-- **`TESTING_ISSUES.md`** - Detailed analysis and validation checklist
 
 ## Prerequisites
 
@@ -83,10 +81,10 @@ Test only specific commands:
 8. `spider` - Spider information post
 9. `quote` - Quote of the day
 10. `africa` - Africa exploration post
-11. `london` - London information post
+11. `canary` - Canary Wharf information with events (changed from "london")
 12. `uk` - UK cities post
-13. `job` - Job vacancy post (DevOps/MLOps/SRE)
-14. `weather` - Weather forecast for multiple cities
+13. `job` - Job vacancy post (DevOps/MLOps/SRE, max 3 weeks old)
+14. `weather` - Weather forecast (Protaras, Kraków, etc.)
 
 ## How Tests Work
 
@@ -187,7 +185,7 @@ See [PROBLEMS_SUMMARY.md](PROBLEMS_SUMMARY.md) for details and improvement plans
 
 ### Test all content generators:
 ```bash
-./test_services.sh person tech spider quote africa london uk
+./test_services.sh person tech spider quote africa canary uk
 ```
 
 ### Test news services:
@@ -195,12 +193,96 @@ See [PROBLEMS_SUMMARY.md](PROBLEMS_SUMMARY.md) for details and improvement plans
 ./test_services.sh news ukraine
 ```
 
+## Content Validation Tests
+
+### What They Test
+
+The validation tests (`test_content_validation.py`) prevent regressions by checking:
+
+1. **Canary Wharf Content**
+   - ✅ No "places to visit" section (removed)
+   - ✅ Events field present (1-2 events)
+   - ✅ Canary Wharf fact included
+   - ✅ Image search term for district photos
+
+2. **Weather Cities**
+   - ✅ Uses **Protaras** for Cyprus (not Nicosia)
+   - ✅ Uses **Kraków** for Poland (not Warsaw)
+   - ✅ Template correctly configured
+
+3. **Job Postings Age**
+   - ✅ Jobs must be posted within **3 weeks** (21 days)
+   - ✅ No old 7-day requirement
+   - ✅ All required fields present
+
+4. **Command Configuration**
+   - ✅ "canary" command exists
+   - ✅ Old "london" command removed
+   - ✅ All services properly configured
+
+5. **Sequential Schedule**
+   - ✅ All posts in morning (08:10-10:10)
+   - ✅ 10-minute intervals
+   - ✅ No old evening times
+
+### How to Run Validation Tests
+
+```bash
+# Run all validation tests
+cd /Users/iva/chat_bot/telegram-whatsup-chat-bot/group-posts-service
+python3 tests/test_content_validation.py
+
+# Or from tests directory
+cd tests
+python3 test_content_validation.py
+```
+
+### Expected Output
+
+```
+🧪 CONTENT VALIDATION TESTS
+============================================================
+Testing all changes from today to prevent regressions
+
+🏢 Testing Canary Wharf Content...
+✅ PASS: Canary Wharf: Content generation
+✅ PASS: Canary Wharf: No places to visit
+✅ PASS: Canary Wharf: Events present
+...
+
+📊 TEST SUMMARY
+============================================================
+✅ Passed: 25/25
+❌ Failed: 0/25
+
+🎉 All tests passed!
+```
+
+### When to Run
+
+- **Before commits**: Ensure no regressions
+- **After changes**: Verify fixes are maintained
+- **In CI/CD**: Automated validation
+- **Daily**: Catch configuration drift
+
+### Integration with CI/CD
+
+```bash
+# Run both command tests and validation tests
+./test_services.sh && python3 test_content_validation.py
+
+# Exit code: 0 = all passed, non-zero = failed
+```
+
 ## CI/CD Integration
 
 For automated testing:
 ```bash
-# Set timeout to prevent hanging
+# Run command tests
 timeout 300 ./test_services.sh
+
+# Run validation tests
+python3 test_content_validation.py
 
 # Exit code: 0 = all passed, non-zero = some failed
 ```
