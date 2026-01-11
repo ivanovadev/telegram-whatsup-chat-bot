@@ -1,0 +1,66 @@
+"""
+Example file showing what security checker detects.
+
+IMPORTANT: This is .example file - rename to .py to test detection.
+"""
+
+# ❌ SENSITIVE DATA EXAMPLES (will be detected)
+# These would be detected by the security checker:
+
+# API Keys
+API_KEY = "sk-abc123def456ghi789jkl012mno345pqr678"
+OPENAI_KEY = "sk-proj-1234567890abcdefghijklmnop"
+
+# Telegram Bot Token
+BOT_TOKEN = "123456789:ABCdefGHIjklMNOpqrsTUVwxyz12345678"
+
+# AWS Keys
+AWS_ACCESS_KEY = "AKIAIOSFODNN7EXAMPLE"
+
+# Passwords
+PASSWORD = "MySecretPassword123"
+DATABASE_PASSWORD = "db_pass_secret_2024"
+
+# Access Tokens
+ACCESS_TOKEN = "ghp_1234567890abcdefghijklmnopqrstuvwxyz"
+AUTH_TOKEN = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9"
+
+# Phone Numbers
+PHONE_NUMBER = "+380501234567"
+CONTACT_PHONE = "380671234567"
+
+# Email
+ADMIN_EMAIL = "admin@example.com"
+SUPPORT_EMAIL = "support@myapp.com"
+
+# ✅ SAFE EXAMPLES (will NOT be detected as issues)
+# These would NOT be detected as issues:
+
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
+
+# Good: Using environment variables
+API_KEY_SAFE = os.getenv("API_KEY")
+BOT_TOKEN_SAFE = os.getenv("TELEGRAM_BOT_TOKEN")
+
+# Good: Placeholder values
+API_KEY_PLACEHOLDER = "your-api-key-here"
+TOKEN_PLACEHOLDER = "xxx-xxx-xxx"
+
+# Good: Comments explaining
+# Set your API_KEY environment variable
+# Get your bot token from @BotFather
+
+# ❌ UKRAINIAN TEXT EXAMPLES
+# These lines will be detected as Ukrainian language:
+# message = "Привіт, світ!"
+# error_msg = "Помилка: неправильний формат"
+# welcome = "Ласкаво просимо до нашого боту"
+
+print("""
+========================================
+This file contains example issues
+========================================
+""")

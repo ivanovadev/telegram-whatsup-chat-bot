@@ -14,14 +14,15 @@ telegram-whatsup-chat-bot/
 ├── auto-reply-service/      # Auto-reply microservice
 │   ├── app/
 │   ├── handlers/           # inbox, control
-│   ├── services/           # suggester, budget_guard
+│   ├── shared_services/    # suggester, budget_guard, channel_content, image_service
 │   ├── storage/            # database
 │   └── requirements.txt
 │
 ├── group-posts-service/     # Group posts microservice (dev)
 │   ├── app/
-│   ├── services/           # channel_handler, channel_content, image_service
-│   ├── storage/            # database
+│   ├── content/             # Content generators (channel, person, tech, etc.)
+│   ├── services/            # channel_handler, image_service, news_service, etc.
+│   ├── storage/             # database
 │   └── requirements.txt
 │
 ├── channel-posts-service/   # Channel posts microservice (production)
@@ -174,8 +175,8 @@ Handles incoming private messages:
 - `app/main.py` - Entry point
 - `handlers/inbox.py` - Incoming message handler
 - `handlers/control.py` - Control chat commands
-- `services/suggester.py` - Response generation
-- `services/budget_guard.py` - Cost control
+- `shared_services/suggester.py` - Response generation
+- `shared_services/budget_guard.py` - Cost control
 
 ### Group Posts Service (Dev)
 
@@ -188,8 +189,13 @@ Generates and posts travel content to **groups** (development/testing):
 **Files:**
 - `app/main.py` - Entry point
 - `services/channel_handler.py` - Posting logic
-- `services/channel_content.py` - Content generation
+- `content/channel_content.py` - Travel content generation
+- `content/person_content.py` - Famous person content
+- `content/tech_content.py` - Tech device content
+- `content/` - Other content generators (spider, quote, africa, london, uk, job, weather)
 - `services/image_service.py` - Image fetching
+- `services/news_service.py` - News aggregation
+- `services/ukraine_news_service.py` - Ukraine news
 
 ### Channel Posts Service (Production)
 
@@ -202,8 +208,8 @@ Generates and posts travel content to **channels** (production):
 **Files:**
 - `app/main.py` - Entry point
 - `services/channel_handler.py` - Posting logic
-- `services/channel_content.py` - Content generation
-- `services/image_service.py` - Image fetching
+- `shared_services/channel_content.py` - Content generation (from root)
+- `shared_services/image_service.py` - Image fetching (from root)
 
 ## 📁 Data Storage
 
@@ -256,27 +262,41 @@ auto-reply-service/
 ├── handlers/
 │   ├── inbox.py
 │   └── control.py
-├── services/
+├── shared_services/
 │   ├── suggester.py
-│   └── budget_guard.py
+│   ├── budget_guard.py
+│   ├── channel_content.py
+│   └── image_service.py
 └── storage/
     └── db.py
 
 group-posts-service/
 ├── app/
 │   └── main.py
+├── content/              # Content generators
+│   ├── channel_content.py
+│   ├── person_content.py
+│   ├── tech_content.py
+│   ├── spider_content.py
+│   ├── quote_content.py
+│   ├── africa_content.py
+│   ├── london_content.py
+│   ├── uk_content.py
+│   ├── job_content.py
+│   └── weather_content.py
 └── services/
     ├── channel_handler.py
-    ├── channel_content.py
-    └── image_service.py
+    ├── image_service.py
+    ├── news_service.py
+    ├── ukraine_news_service.py
+    └── services_list.py
 
 channel-posts-service/
 ├── app/
 │   └── main.py
 └── services/
     ├── channel_handler.py
-    ├── channel_content.py
-    └── image_service.py
+    └── ... (uses shared_services for content/image)
 ```
 
 ### Running Tests
@@ -292,6 +312,46 @@ See `.env.example` for budget configuration:
 - `DAILY_BUDGET_USD=2.0`
 - `ALERT_AT_USD=1.5`
 - `HARD_STOP_USD=2.5`
+
+## ⚠️ Troubleshooting
+
+### Commands Not Working in Saved Messages
+
+**Problem:** Commands like `job`, `travel`, `news`, etc. are not being processed even though you see them in logs.
+
+**Symptoms:**
+- Log shows: `📨 Received message: 'job' (out=True, sender_id=XXX, me_id=XXX, reply_to=False)`
+- But no response or action is taken
+
+**Solution:**
+This is expected behavior in Saved Messages. The bot processes commands correctly:
+- ✅ Commands work when sent as standalone messages (not replies)
+- ✅ Commands are ignored when replying to bot's messages
+- ✅ All messages in Saved Messages have `out=True` (this is normal for userbots)
+
+**How to use commands:**
+1. Send command as a new message (not a reply): `job`, `travel`, `news`, etc.
+2. Wait for bot's response
+3. If you don't see a response, check:
+   - Is the service running?
+   - Are there any errors in logs?
+   - Is `GROUP_POSTS_ENABLED=on` in `.env`?
+   - Is `GROUP_ID` or `GROUP_USERNAME` set correctly?
+
+**Available commands:**
+- `travel` / `travel morning` - Generate travel posts
+- `news` - Generate news summary
+- `job` - Generate job vacancies
+- `person` - Generate famous person post
+- `tech` - Generate tech device post
+- `ukraine` - Generate Ukraine news
+- `spider` - Generate spider post
+- `london` - Generate London post
+- `uk` - Generate UK post
+- `phrase` - Generate phrase of the day
+- `africa` - Generate Africa exploration post
+
+See [MANUAL_CONTROL.md](MANUAL_CONTROL.md) for full command documentation.
 
 ## 📝 License
 

@@ -4,8 +4,8 @@ import asyncio
 from dotenv import load_dotenv
 from telethon import TelegramClient
 from storage.db import Database
-from services.channel_content import ChannelContentGenerator
-from services.image_service import ImageService
+from shared_services.channel_content import ChannelContentGenerator
+from shared_services.image_service import ImageService
 from services.channel_handler import ChannelHandler
 
 # Load environment variables from service directory

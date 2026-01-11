@@ -161,6 +161,183 @@ travel morning
 
 **Note:** Requires `CHANNEL_POSTS_ENABLED=on` in `.env` and proper group/channel configuration.
 
+### `news`
+Manually trigger a news summary post to the configured group/channel. This generates 3 main news items (2 from Bloomberg/BBC, 1 about Ukraine war from Ukrainian Truth).
+
+**Example:**
+```
+news
+```
+
+**Response:**
+- `📰 Generating news summary...`
+- `✅ News post sent!`
+
+**Note:** Requires `CHANNEL_POSTS_ENABLED=on` in `.env` and proper group/channel configuration.
+
+### `tech`
+Manually trigger a tech device post to the configured group/channel. This generates a post about an engineering/electronic device with photo, year of creation, overview, and resource link.
+
+**Example:**
+```
+tech
+```
+
+**Response:**
+- `🔧 Generating tech device post...`
+- `✅ Tech post sent!`
+
+**Note:** Requires `TECH_POSTS_ENABLED=on` in `.env` and proper group/channel configuration. This command is handled by the tech-posts-service.
+
+### `person`
+Manually trigger a famous person post to the configured group/channel. This generates a post about a famous inventor, engineer, or scientist with photo, tricky fact, and Wikipedia link.
+
+**Example:**
+```
+person
+```
+
+**Response:**
+- `👤 Generating famous person post...`
+- `✅ Person post sent!`
+
+**Note:** Requires `PERSON_POSTS_ENABLED=on` in `.env` and proper group/channel configuration. This command is handled by the famous-person-posts-service.
+
+### `ukraine`
+Manually trigger a Ukraine news post to the configured group/channel. This generates 3 main news items from the last 12 hours: economic news, political news, and war news against Russia.
+
+**Example:**
+```
+ukraine
+```
+
+**Response:**
+- `🇺🇦 Generating Ukraine news...`
+- `✅ Ukraine news post sent!`
+
+**Note:** Requires proper group/channel configuration. This command is handled by the group-posts-service.
+
+### `spider`
+Manually trigger a spider post to the configured group/channel. This generates a post about a spider species (with photo, where to meet, size, color, hunter status, speed, lifespan, dangerous rate).
+
+**Example:**
+```
+spider
+```
+
+**Response:**
+- `🕷️ Generating spider post...`
+- `✅ Spider post sent!`
+
+**Note:** Requires proper group/channel configuration. This command is handled by the group-posts-service.
+
+### `london`
+Manually trigger a London post to the configured group/channel. This generates information about places to visit in London, facts about London, and facts about British politicians.
+
+**Example:**
+```
+london
+```
+
+**Response:**
+- `🇬🇧 Generating London post...`
+- `✅ London post sent!`
+
+**Note:** Requires proper group/channel configuration. This command is handled by the group-posts-service.
+
+### `uk`
+Manually trigger a UK post to the configured group/channel. This generates information about UK cities to visit and facts about the UK.
+
+**Example:**
+```
+uk
+```
+
+**Response:**
+- `🇬🇧 Generating UK post...`
+- `✅ UK post sent!`
+
+**Note:** Requires proper group/channel configuration. This command is handled by the group-posts-service.
+
+### `job`
+Manually trigger a job vacancies post to the configured group/channel. This generates 3 job vacancies in Canary Wharf, London with requirements: DevOps/MLOps/SRE/System Engineer positions, company rating >4, NOT FAANG/bank/AI companies, salary ≥£60,000, NOT remote, with LinkedIn links.
+
+**Example:**
+```
+job
+```
+
+**Response:**
+- `💼 Generating job vacancies...`
+- `✅ Job post sent!`
+
+**Note:** Requires proper group/channel configuration. This command is handled by the group-posts-service. Jobs are posted automatically twice per day at 08:00 and 19:00.
+
+### `quote`
+Manually trigger a quote of the day post to the configured group/channel. This generates an inspiring quote with author, author info, and practical advice.
+
+**Note:** Previously known as `phrase` command.
+
+**Example:**
+```
+quote
+```
+
+**Response:**
+- `💬 Generating quote of the day...`
+- `✅ Quote post sent!`
+
+**Note:** Requires proper group/channel configuration. This command is handled by the group-posts-service.
+
+### `africa`
+Manually trigger an Africa exploration post to the configured group/channel. This generates information about exploring an African country with cities, places, activities, and facts.
+
+**Example:**
+```
+africa
+```
+
+**Response:**
+- `🌍 Generating Africa exploration post...`
+- `✅ Africa post sent!`
+
+**Note:** Requires proper group/channel configuration. This command is handled by the group-posts-service.
+
+### `weather`
+Manually trigger a weather forecast post to the configured group/channel. This generates current weather information for 6 cities (London, Bila Tserkva, Poltava, Bengaluru, Cyprus, Poland) with day/night temperatures and weather emojis.
+
+**Example:**
+```
+weather
+```
+
+**Response:**
+- `🌤️ Generating weather forecast...`
+- `✅ Weather post sent!`
+
+**Format:**
+```
+🌤️ Weather | 11 Jan 2026
+
+☁️ UK
+London: 8/3°C
+
+❄️ Ukraine
+Bila Tserkva: 6/-1°C
+Poltava: 5/-2°C
+
+☀️ India
+Bengaluru: 27/15°C
+```
+
+**Features:**
+- Day/Night temperatures in Celsius
+- Weather emojis (☀️ sunny, ☁️ cloudy, 🌧️ rain, ❄️ snow, etc.)
+- Grouped by country
+- Uses OpenWeatherMap API or LLM fallback
+
+**Note:** Requires proper group/channel configuration. This command is handled by the group-posts-service. Weather posts are automatically sent at 09:00 daily.
+
 ---
 
 ## Group/Channel Setup Commands
@@ -194,17 +371,41 @@ CHANNEL_ID=-1001234567890
 
 ## Command Summary
 
+### Control & Status Commands
 | Command | Description |
 |---------|-------------|
 | `status` | Show bot status (budget, LLM, cards, modes) |
 | `busy on` | Enable busy mode (auto-create cards) |
 | `busy off` | Disable busy mode |
+| `get group id` | Get group/channel ID (reply to message) |
+
+### Whitelist Management
+| Command | Description |
+|---------|-------------|
 | `whitelist add @user` | Add user to whitelist |
 | `whitelist remove @user` | Remove user from whitelist |
 | `whitelist list` | List all whitelisted users |
+
+### Content Generation Commands
+| Command | Description |
+|---------|-------------|
 | `travel` | Trigger evening travel post |
 | `travel morning` | Trigger morning travel post |
-| `get group id` | Get group/channel ID (reply to message) |
+| `news` | Trigger news summary post (Bloomberg, BBC, Ukrainian Truth) |
+| `tech` | Trigger tech device post (engineering devices) |
+| `person` | Trigger famous person post (inventors, scientists) |
+| `ukraine` | Trigger Ukraine news post (economy, politics, war) |
+| `spider` | Trigger spider information post |
+| `quote` | Trigger quote of the day post (previously `phrase`) |
+| `africa` | Trigger Africa exploration post |
+| `london` | Trigger London information post |
+| `uk` | Trigger UK cities post |
+| `job` | Trigger job vacancies post (DevOps/MLOps/SRE, 3 vacancies) |
+| `weather` | Trigger weather forecast post (6 cities with emojis) |
+
+### Card Response Commands
+| Command | Description |
+|---------|-------------|
 | `1` / `2` / `3` | Select response option (reply to card) |
 | `0` | Decline card (reply to card) |
 | `custom: <text>` | Send custom response (reply to card) |

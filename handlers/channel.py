@@ -7,8 +7,8 @@ from datetime import datetime, time
 from typing import Optional
 from telethon import TelegramClient
 from telethon.tl.types import MessageMediaPhoto
-from services.channel_content import ChannelContentGenerator
-from services.image_service import ImageService
+from shared_services.channel_content import ChannelContentGenerator
+from shared_services.image_service import ImageService
 from storage.db import Database
 
 logger = logging.getLogger(__name__)

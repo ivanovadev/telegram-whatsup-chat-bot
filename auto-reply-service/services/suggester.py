@@ -2,7 +2,7 @@
 import os
 import random
 from typing import List, Optional
-from services.budget_guard import BudgetGuard
+from shared_services.budget_guard import BudgetGuard
 
 
 class Suggester:
