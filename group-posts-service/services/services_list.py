@@ -69,13 +69,13 @@ SERVICES = [
         "features": ["cities", "places (2 max)", "activities (2 max)", "cultural/wildlife/historical facts"]
     },
     {
-        "name": "london_content",
+        "name": "canary_wharf_content",
         "file": "content/london_content.py",
         "class": "LondonContentGenerator",
-        "description": "Generates London information posts with places to visit and facts",
+        "description": "Generates Canary Wharf (London) information posts with events and facts",
         "schedule": "Configurable via LONDON_POST_TIME",
-        "command": "london",
-        "features": ["places", "facts about London", "facts about British politicians"]
+        "command": "canary",
+        "features": ["upcoming events (1-2)", "Canary Wharf facts", "Dog Island area", "photos from district"]
     },
     {
         "name": "uk_content",

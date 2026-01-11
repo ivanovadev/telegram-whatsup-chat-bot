@@ -17,8 +17,8 @@ class WeatherContentGenerator:
         {"name": "Bila Tserkva", "country": "Ukraine", "country_code": "UA"},
         {"name": "Poltava", "country": "Ukraine", "country_code": "UA"},
         {"name": "Bengaluru", "country": "India", "country_code": "IN"},
-        {"name": "Nicosia", "country": "Cyprus", "country_code": "CY"},  # Capital of Cyprus
-        {"name": "Warsaw", "country": "Poland", "country_code": "PL"}  # Capital of Poland
+        {"name": "Protaras", "country": "Cyprus", "country_code": "CY"},
+        {"name": "Kraków", "country": "Poland", "country_code": "PL"}
     ]
     
     def __init__(self, budget_guard):
@@ -76,13 +76,8 @@ class WeatherContentGenerator:
                         # Map weather to emoji
                         emoji = self._get_weather_emoji(weather_main, weather_desc)
                         
-                        # For Cyprus and Poland, use country name as city display
-                        display_city = city_name
-                        if city_info["country"] in ["Cyprus", "Poland"]:
-                            display_city = city_info["country"]
-                        
                         weather_data.append({
-                            "city": display_city,
+                            "city": city_name,
                             "country": city_info["country"],
                             "temp_day": round(temp_max),
                             "temp_night": round(temp_min),
@@ -94,13 +89,8 @@ class WeatherContentGenerator:
                     except Exception as e:
                         logger.warning(f"Error fetching weather for {city_name}: {e}")
                         # Use fallback
-                        # For Cyprus and Poland, use country name as city display
-                        display_city = city_name
-                        if city_info["country"] in ["Cyprus", "Poland"]:
-                            display_city = city_info["country"]
-                        
                         weather_data.append({
-                            "city": display_city,
+                            "city": city_name,
                             "country": city_info["country"],
                             "temp_day": 20,
                             "temp_night": 15,
@@ -151,15 +141,57 @@ class WeatherContentGenerator:
             
             # Note for LLM: For Cyprus and Poland, use country name as city name
             
-            prompt = f"""Generate current weather forecast for the following cities:
+            # Get current month and season for realistic temperatures
+            from datetime import datetime
+            current_month = datetime.now().month
+            current_season = "winter" if current_month in [12, 1, 2] else "spring" if current_month in [3, 4, 5] else "summer" if current_month in [6, 7, 8] else "autumn"
+            
+            prompt = f"""Generate REALISTIC CURRENT weather forecast for TODAY for the following cities:
 {cities_list}
 
+CRITICAL: Use REAL, ACCURATE weather based on:
+- Current date: {current_date}
+- Current season: {current_season}
+- Current month: {current_month}
+- Typical weather patterns for each location in this season
+
+TEMPERATURE GUIDELINES (must be realistic):
+- London (UK) in {current_season}: typical range
+  * Winter: -2°C to 8°C (day), -5°C to 3°C (night)
+  * Spring: 8°C to 15°C (day), 3°C to 8°C (night)
+  * Summer: 18°C to 25°C (day), 12°C to 18°C (night)
+  * Autumn: 8°C to 15°C (day), 5°C to 10°C (night)
+
+- Ukraine (Bila Tserkva, Poltava) in {current_season}:
+  * Winter: -15°C to -5°C (day), -20°C to -10°C (night) [VERY COLD, often snow ❄️]
+  * Spring: 5°C to 15°C (day), 0°C to 8°C (night)
+  * Summer: 20°C to 28°C (day), 12°C to 18°C (night)
+  * Autumn: 5°C to 15°C (day), 0°C to 8°C (night)
+
+- Bengaluru (India) in {current_season}:
+  * Winter: 24°C to 28°C (day), 15°C to 20°C (night)
+  * Spring: 28°C to 35°C (day), 20°C to 25°C (night)
+  * Summer: 28°C to 35°C (day), 20°C to 25°C (night)
+  * Autumn: 25°C to 30°C (day), 18°C to 23°C (night)
+
+- Cyprus in {current_season}:
+  * Winter: 15°C to 18°C (day), 8°C to 12°C (night)
+  * Spring: 18°C to 25°C (day), 12°C to 18°C (night)
+  * Summer: 28°C to 35°C (day), 20°C to 25°C (night)
+  * Autumn: 22°C to 28°C (day), 15°C to 20°C (night)
+
+- Poland in {current_season}:
+  * Winter: -5°C to 2°C (day), -10°C to -3°C (night) [Cold, often snow ❄️]
+  * Spring: 8°C to 15°C (day), 2°C to 8°C (night)
+  * Summer: 20°C to 27°C (day), 12°C to 18°C (night)
+  * Autumn: 8°C to 15°C (day), 3°C to 10°C (night)
+
 For each city, provide:
-1. Day temperature (high) in Celsius
-2. Night temperature (low) in Celsius
+1. Day temperature (realistic for {current_season} in that location) in Celsius
+2. Night temperature (realistic for {current_season} in that location) in Celsius
 3. Average temperature in Celsius
-4. Weather condition (rain, cloudy, sunny, snow, thunderstorm, etc.)
-5. Appropriate emoji (🌧️ for rain, ☁️ for cloudy, ☀️ for sunny, ⛈️ for thunderstorm, ❄️ for snow, ⛅ for partly cloudy)
+4. Weather condition matching the season (e.g., winter in Ukraine = snow, cold; summer = sunny, warm)
+5. Appropriate emoji (🌧️ rain, ☁️ cloudy, ☀️ sunny, ⛈️ thunderstorm, ❄️ snow, ⛅ partly cloudy, 🌫️ fog)
 
 Format as JSON:
 {{
@@ -168,49 +200,67 @@ Format as JSON:
     {{
       "city": "London",
       "country": "UK",
-      "temp_day": 22,
-      "temp_night": 15,
-      "temp_avg": 18,
-      "emoji": "☀️",
-      "condition": "sunny"
+      "temp_day": <realistic day temp for {current_season}>,
+      "temp_night": <realistic night temp for {current_season}>,
+      "temp_avg": <average of day/night>,
+      "emoji": "☁️",
+      "condition": "cloudy"
     }},
     {{
       "city": "Bila Tserkva",
       "country": "Ukraine",
-      "temp_day": 18,
-      "temp_night": 10,
-      "temp_avg": 14,
-      "emoji": "☁️",
-      "condition": "cloudy"
+      "temp_day": <realistic day temp for {current_season}>,
+      "temp_night": <realistic night temp for {current_season}>,
+      "temp_avg": <average of day/night>,
+      "emoji": "❄️",
+      "condition": "snow"
     }},
     {{
-      "city": "Cyprus",
-      "country": "Cyprus",
-      "temp_day": 25,
-      "temp_night": 18,
-      "temp_avg": 22,
+      "city": "Poltava",
+      "country": "Ukraine",
+      "temp_day": <realistic day temp for {current_season}>,
+      "temp_night": <realistic night temp for {current_season}>,
+      "temp_avg": <average of day/night>,
+      "emoji": "❄️",
+      "condition": "snow"
+    }},
+    {{
+      "city": "Bengaluru",
+      "country": "India",
+      "temp_day": <realistic day temp for {current_season}>,
+      "temp_night": <realistic night temp for {current_season}>,
+      "temp_avg": <average of day/night>,
       "emoji": "☀️",
       "condition": "sunny"
     }},
     {{
-      "city": "Poland",
+      "city": "Protaras",
+      "country": "Cyprus",
+      "temp_day": <realistic day temp for {current_season}>,
+      "temp_night": <realistic night temp for {current_season}>,
+      "temp_avg": <average of day/night>,
+      "emoji": "☀️",
+      "condition": "sunny"
+    }},
+    {{
+      "city": "Kraków",
       "country": "Poland",
-      "temp_day": 16,
-      "temp_night": 8,
-      "temp_avg": 12,
-      "emoji": "☁️",
-      "condition": "cloudy"
+      "temp_day": <realistic day temp for {current_season}>,
+      "temp_night": <realistic night temp for {current_season}>,
+      "temp_avg": <average of day/night>,
+      "emoji": "❄️",
+      "condition": "snow"
     }}
-    // ... for all cities
   ]
 }}
 
-IMPORTANT:
-- Use realistic temperatures based on current season and location
+CRITICAL REQUIREMENTS:
+- Temperatures MUST be realistic for the current season ({current_season}) and location
+- Ukraine and Poland in winter: temperatures should be NEGATIVE (below 0°C) with snow ❄️
+- Use accurate weather conditions for the season
 - All temperatures in Celsius
 - Emoji must match weather condition
-- For Cyprus: use "Cyprus" as city name (not "Nicosia")
-- For Poland: use "Poland" as city name (not "Warsaw")
+- Use exact city names: Protaras for Cyprus, Kraków for Poland
 - Current date: {current_date}
 
 Return ONLY valid JSON, no additional text."""
@@ -270,15 +320,52 @@ Return ONLY valid JSON, no additional text."""
             return self._generate_template()
     
     def _generate_template(self) -> Dict:
-        """Generate template weather when API/LLM unavailable."""
+        """Generate template weather when API/LLM unavailable - uses seasonal appropriate temperatures."""
+        # Get current season for realistic temperatures
+        current_month = datetime.now().month
+        
+        # Winter templates (Dec-Feb): cold, snow in Ukraine/Poland
+        if current_month in [12, 1, 2]:
+            weather_data = [
+                {"city": "London", "country": "UK", "temp_day": 6, "temp_night": 2, "temp_avg": 4, "emoji": "☁️", "condition": "cloudy"},
+                {"city": "Bila Tserkva", "country": "Ukraine", "temp_day": -8, "temp_night": -15, "temp_avg": -12, "emoji": "❄️", "condition": "snow"},
+                {"city": "Poltava", "country": "Ukraine", "temp_day": -10, "temp_night": -16, "temp_avg": -13, "emoji": "❄️", "condition": "snow"},
+                {"city": "Bengaluru", "country": "India", "temp_day": 26, "temp_night": 18, "temp_avg": 22, "emoji": "☀️", "condition": "sunny"},
+                {"city": "Protaras", "country": "Cyprus", "temp_day": 16, "temp_night": 10, "temp_avg": 13, "emoji": "⛅", "condition": "partly cloudy"},
+                {"city": "Kraków", "country": "Poland", "temp_day": -2, "temp_night": -7, "temp_avg": -5, "emoji": "❄️", "condition": "snow"}
+            ]
+        # Spring templates (Mar-May)
+        elif current_month in [3, 4, 5]:
+            weather_data = [
+                {"city": "London", "country": "UK", "temp_day": 12, "temp_night": 6, "temp_avg": 9, "emoji": "⛅", "condition": "partly cloudy"},
+                {"city": "Bila Tserkva", "country": "Ukraine", "temp_day": 10, "temp_night": 3, "temp_avg": 7, "emoji": "☁️", "condition": "cloudy"},
+                {"city": "Poltava", "country": "Ukraine", "temp_day": 11, "temp_night": 4, "temp_avg": 8, "emoji": "⛅", "condition": "partly cloudy"},
+                {"city": "Bengaluru", "country": "India", "temp_day": 32, "temp_night": 22, "temp_avg": 27, "emoji": "☀️", "condition": "sunny"},
+                {"city": "Protaras", "country": "Cyprus", "temp_day": 22, "temp_night": 15, "temp_avg": 19, "emoji": "☀️", "condition": "sunny"},
+                {"city": "Kraków", "country": "Poland", "temp_day": 12, "temp_night": 5, "temp_avg": 9, "emoji": "☁️", "condition": "cloudy"}
+            ]
+        # Summer templates (Jun-Aug)
+        elif current_month in [6, 7, 8]:
+            weather_data = [
+                {"city": "London", "country": "UK", "temp_day": 22, "temp_night": 15, "temp_avg": 19, "emoji": "⛅", "condition": "partly cloudy"},
+                {"city": "Bila Tserkva", "country": "Ukraine", "temp_day": 26, "temp_night": 16, "temp_avg": 21, "emoji": "☀️", "condition": "sunny"},
+                {"city": "Poltava", "country": "Ukraine", "temp_day": 27, "temp_night": 17, "temp_avg": 22, "emoji": "☀️", "condition": "sunny"},
+                {"city": "Bengaluru", "country": "India", "temp_day": 30, "temp_night": 21, "temp_avg": 26, "emoji": "🌧️", "condition": "rain"},
+                {"city": "Protaras", "country": "Cyprus", "temp_day": 32, "temp_night": 23, "temp_avg": 28, "emoji": "☀️", "condition": "sunny"},
+                {"city": "Kraków", "country": "Poland", "temp_day": 24, "temp_night": 14, "temp_avg": 19, "emoji": "⛅", "condition": "partly cloudy"}
+            ]
+        # Autumn templates (Sep-Nov)
+        else:
+            weather_data = [
+                {"city": "London", "country": "UK", "temp_day": 13, "temp_night": 8, "temp_avg": 11, "emoji": "🌧️", "condition": "rain"},
+                {"city": "Bila Tserkva", "country": "Ukraine", "temp_day": 10, "temp_night": 4, "temp_avg": 7, "emoji": "☁️", "condition": "cloudy"},
+                {"city": "Poltava", "country": "Ukraine", "temp_day": 11, "temp_night": 5, "temp_avg": 8, "emoji": "☁️", "condition": "cloudy"},
+                {"city": "Bengaluru", "country": "India", "temp_day": 27, "temp_night": 20, "temp_avg": 24, "emoji": "⛅", "condition": "partly cloudy"},
+                {"city": "Protaras", "country": "Cyprus", "temp_day": 25, "temp_night": 18, "temp_avg": 22, "emoji": "☀️", "condition": "sunny"},
+                {"city": "Kraków", "country": "Poland", "temp_day": 10, "temp_night": 5, "temp_avg": 8, "emoji": "🌧️", "condition": "rain"}
+            ]
+        
         return {
             "date": datetime.now().strftime("%Y-%m-%d"),
-            "weather": [
-                {"city": "London", "country": "UK", "temp_day": 20, "temp_night": 12, "temp_avg": 16, "emoji": "☁️", "condition": "cloudy"},
-                {"city": "Bila Tserkva", "country": "Ukraine", "temp_day": 18, "temp_night": 10, "temp_avg": 14, "emoji": "☀️", "condition": "sunny"},
-                {"city": "Poltava", "country": "Ukraine", "temp_day": 19, "temp_night": 11, "temp_avg": 15, "emoji": "⛅", "condition": "partly cloudy"},
-                {"city": "Bengaluru", "country": "India", "temp_day": 28, "temp_night": 20, "temp_avg": 24, "emoji": "☀️", "condition": "sunny"},
-                {"city": "Cyprus", "country": "Cyprus", "temp_day": 25, "temp_night": 18, "temp_avg": 22, "emoji": "☀️", "condition": "sunny"},
-                {"city": "Poland", "country": "Poland", "temp_day": 16, "temp_night": 8, "temp_avg": 12, "emoji": "☁️", "condition": "cloudy"}
-            ]
+            "weather": weather_data
         }
