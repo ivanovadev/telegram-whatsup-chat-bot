@@ -1,35 +1,23 @@
 #!/usr/bin/env python3
-"""Count lines of code in the telegram-whatsup-chat-bot repository.
-
-This script analyzes the codebase and provides statistics about:
-- Total lines of code
-- Lines by file type (Python, Markdown, Shell, etc.)
-- Lines by service/directory
-- Code vs comments vs blank lines
-
-Usage:
-    python3 count_lines.py
-    python3 count_lines.py --detailed
-"""
+"""Count lines of code and check for unnecessary comments."""
 
 import os
 import sys
+import re
 from pathlib import Path
 from collections import defaultdict
 import argparse
 
 
 class CodeCounter:
-    """Count lines of code in the repository."""
+    """Count lines of code and analyze comment quality."""
     
-    # Directories to exclude from counting
     EXCLUDE_DIRS = {
-        'venv', '__pycache__', '.git', 'node_modules', 
+        'venv', '.venv', '__pycache__', '.git', 'node_modules', 
         '.pytest_cache', '.mypy_cache', 'dist', 'build',
         'egg-info', '.tox', 'htmlcov', '.coverage'
     }
     
-    # File extensions to count
     FILE_TYPES = {
         '.py': 'Python',
         '.md': 'Markdown',
@@ -43,8 +31,15 @@ class CodeCounter:
         '.cfg': 'Config',
     }
     
+    # Patterns for unnecessary comments
+    UNNECESSARY_COMMENT_PATTERNS = [
+        r'#\s*TODO:',  # TODO comments
+        r'#\s*\.\.\.',  # Placeholder comments with ...
+        r'#\s*-{10,}',  # Long separator lines with dashes
+        r'#\s*={10,}',  # Long separator lines with equals
+    ]
+    
     def __init__(self, root_path: str):
-        """Initialize counter with repository root path."""
         self.root_path = Path(root_path).resolve()
         self.stats = {
             'total_files': 0,
@@ -52,24 +47,24 @@ class CodeCounter:
             'code_lines': 0,
             'comment_lines': 0,
             'blank_lines': 0,
+            'unnecessary_comments': 0,
             'by_type': defaultdict(lambda: {'files': 0, 'lines': 0, 'code': 0}),
             'by_service': defaultdict(lambda: {'files': 0, 'lines': 0, 'code': 0}),
-            'files_processed': []
+            'files_processed': [],
+            'files_with_issues': []
         }
     
     def should_exclude(self, path: Path) -> bool:
-        """Check if path should be excluded."""
-        # Check if any parent directory is in exclude list
+        # Check if path name itself is excluded
+        if path.name in self.EXCLUDE_DIRS:
+            return True
+        # Check if any parent directory is excluded
         for parent in path.parents:
             if parent.name in self.EXCLUDE_DIRS:
                 return True
-        # Check if directory itself is excluded
-        if path.is_dir() and path.name in self.EXCLUDE_DIRS:
-            return True
         return False
     
     def is_comment_line(self, line: str, ext: str) -> bool:
-        """Check if line is a comment."""
         line = line.strip()
         if not line:
             return False
@@ -83,8 +78,27 @@ class CodeCounter:
         
         return False
     
+    def is_unnecessary_comment(self, line: str, ext: str) -> bool:
+        """Check if comment is unnecessary."""
+        if ext != '.py':
+            return False
+        
+        line = line.strip()
+        if not line.startswith('#'):
+            return False
+        
+        for pattern in self.UNNECESSARY_COMMENT_PATTERNS:
+            if re.search(pattern, line, re.IGNORECASE):
+                return True
+        
+        # Check for very long comments (>80 chars inline comments)
+        if len(line) > 100 and not line.startswith('# """'):
+            return True
+        
+        return False
+    
     def count_file(self, file_path: Path) -> dict:
-        """Count lines in a single file."""
+        """Count lines and check for unnecessary comments."""
         try:
             with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
                 lines = f.readlines()
@@ -94,24 +108,29 @@ class CodeCounter:
             comments = sum(1 for line in lines if self.is_comment_line(line, file_path.suffix))
             code = total - blank - comments
             
+            # Check for unnecessary comments
+            unnecessary = []
+            for i, line in enumerate(lines, 1):
+                if self.is_unnecessary_comment(line, file_path.suffix):
+                    unnecessary.append((i, line.strip()))
+            
             return {
                 'total': total,
                 'code': code,
                 'comments': comments,
-                'blank': blank
+                'blank': blank,
+                'unnecessary_comments': unnecessary
             }
         except Exception as e:
             print(f"⚠️  Error reading {file_path}: {e}", file=sys.stderr)
-            return {'total': 0, 'code': 0, 'comments': 0, 'blank': 0}
+            return {'total': 0, 'code': 0, 'comments': 0, 'blank': 0, 'unnecessary_comments': []}
     
     def get_service_name(self, file_path: Path) -> str:
-        """Get service name from file path."""
         try:
             rel_path = file_path.relative_to(self.root_path)
             parts = rel_path.parts
             
             if len(parts) > 0:
-                # First directory is usually the service name
                 service = parts[0]
                 if service.endswith('-service'):
                     return service
@@ -123,31 +142,26 @@ class CodeCounter:
         except ValueError:
             return 'external'
     
-    def scan(self):
+    def scan(self, check_comments: bool = False):
         """Scan repository and count lines."""
         print(f"📊 Scanning repository: {self.root_path}")
         print(f"🚫 Excluding: {', '.join(sorted(self.EXCLUDE_DIRS))}\n")
         
         for file_path in self.root_path.rglob('*'):
-            # Skip if excluded
             if self.should_exclude(file_path):
                 continue
             
-            # Skip if not a file
             if not file_path.is_file():
                 continue
             
-            # Skip if not a recognized file type
             ext = file_path.suffix
             if ext not in self.FILE_TYPES:
                 continue
             
-            # Count lines in file
             counts = self.count_file(file_path)
             if counts['total'] == 0:
                 continue
             
-            # Update stats
             file_type = self.FILE_TYPES[ext]
             service = self.get_service_name(file_path)
             
@@ -156,6 +170,13 @@ class CodeCounter:
             self.stats['code_lines'] += counts['code']
             self.stats['comment_lines'] += counts['comments']
             self.stats['blank_lines'] += counts['blank']
+            
+            if check_comments and counts['unnecessary_comments']:
+                self.stats['unnecessary_comments'] += len(counts['unnecessary_comments'])
+                self.stats['files_with_issues'].append({
+                    'path': file_path.relative_to(self.root_path),
+                    'issues': counts['unnecessary_comments']
+                })
             
             self.stats['by_type'][file_type]['files'] += 1
             self.stats['by_type'][file_type]['lines'] += counts['total']
@@ -173,13 +194,12 @@ class CodeCounter:
                 'code': counts['code']
             })
     
-    def print_summary(self, detailed: bool = False):
+    def print_summary(self, detailed: bool = False, check_comments: bool = False):
         """Print statistics summary."""
         print("=" * 60)
         print("📈 CODE STATISTICS SUMMARY")
         print("=" * 60)
         
-        # Overall stats
         print(f"\n📁 Total Files: {self.stats['total_files']:,}")
         print(f"📝 Total Lines: {self.stats['total_lines']:,}")
         print(f"💻 Code Lines: {self.stats['code_lines']:,}")
@@ -189,6 +209,23 @@ class CodeCounter:
         if self.stats['total_lines'] > 0:
             code_pct = (self.stats['code_lines'] / self.stats['total_lines']) * 100
             print(f"📊 Code Percentage: {code_pct:.1f}%")
+        
+        # Comment quality check
+        if check_comments:
+            print(f"\n{'─' * 60}")
+            print("💬 Comment Quality:")
+            print(f"{'─' * 60}")
+            print(f"⚠️  Unnecessary Comments: {self.stats['unnecessary_comments']}")
+            
+            if self.stats['files_with_issues']:
+                print(f"\n📄 Files with unnecessary comments:")
+                for file_info in self.stats['files_with_issues'][:10]:  # Show first 10
+                    print(f"\n  {file_info['path']}")
+                    for line_num, comment in file_info['issues'][:3]:  # Show first 3 per file
+                        print(f"    Line {line_num}: {comment[:70]}...")
+                
+                if len(self.stats['files_with_issues']) > 10:
+                    print(f"\n  ... and {len(self.stats['files_with_issues']) - 10} more files")
         
         # By file type
         print(f"\n{'─' * 60}")
@@ -237,24 +274,27 @@ class CodeCounter:
 
 def main():
     """Main function."""
-    parser = argparse.ArgumentParser(description='Count lines of code in telegram-whatsup-chat-bot repository')
+    parser = argparse.ArgumentParser(description='Count lines of code and check comment quality')
     parser.add_argument('--detailed', '-d', action='store_true', 
                        help='Show detailed file-by-file breakdown')
+    parser.add_argument('--check-comments', '-c', action='store_true',
+                       help='Check for unnecessary comments')
     parser.add_argument('--path', '-p', type=str, default=None,
-                       help='Path to repository (default: current directory)')
+                       help='Path to repository (default: parent of tests directory)')
     args = parser.parse_args()
     
     # Determine repository root
     if args.path:
         repo_path = args.path
     else:
-        # Assume script is in repository root
-        repo_path = os.path.dirname(os.path.abspath(__file__))
+        # Script is in tests/ directory, go up one level
+        script_dir = os.path.dirname(os.path.abspath(__file__))
+        repo_path = os.path.dirname(script_dir)
     
     # Create counter and scan
     counter = CodeCounter(repo_path)
-    counter.scan()
-    counter.print_summary(detailed=args.detailed)
+    counter.scan(check_comments=args.check_comments)
+    counter.print_summary(detailed=args.detailed, check_comments=args.check_comments)
 
 
 if __name__ == "__main__":

@@ -1,30 +1,39 @@
-"""Generate content for tech device posts."""
+"""Generate content for tech device posts with anti-duplicate system."""
 import os
 import logging
+import json
+import re
 import random
 from typing import Dict, Optional, List
 from openai import OpenAI
 from datetime import datetime
 
+from content.base_content_generator import BaseContentGenerator
+
 logger = logging.getLogger(__name__)
 
 
-class TechContentGenerator:
-    """Generate tech device content for posts."""
+# Template pool for fallback mode
+TECH_TEMPLATE_POOL = [
+    {"device_name": "Arduino Uno", "manufacturer": "Arduino", "country": "Italy", "category": "microcontrollers", "type": "unique", "year_created": "2010", "key_features": ["ATmega328P microcontroller", "14 digital I/O pins", "6 analog inputs", "Open-source hardware"], "what_it_does": "Microcontroller board for building digital devices and interactive objects. Used in robotics, automation, and prototyping.", "resource_link": "https://en.wikipedia.org/wiki/Arduino"},
+    {"device_name": "Raspberry Pi 4", "manufacturer": "Raspberry Pi Foundation", "country": "UK", "category": "embedded systems", "type": "top-notch", "year_created": "2019", "key_features": ["Quad-core ARM processor", "Up to 8GB RAM", "Dual 4K display support", "Low-cost computing"], "what_it_does": "Single-board computer for education and embedded projects. Used in IoT, robotics, and computer science education.", "resource_link": "https://en.wikipedia.org/wiki/Raspberry_Pi"},
+    {"device_name": "ESP32", "manufacturer": "Espressif Systems", "country": "China", "category": "microcontrollers", "type": "unique", "year_created": "2016", "key_features": ["Wi-Fi and Bluetooth built-in", "Dual-core processor", "Low power consumption", "Affordable price"], "what_it_does": "Microcontroller with integrated Wi-Fi and Bluetooth for IoT applications. Used in smart home devices, wearables, and wireless sensors.", "resource_link": "https://en.wikipedia.org/wiki/ESP32"},
+    {"device_name": "NVIDIA A100", "manufacturer": "NVIDIA", "country": "USA", "category": "semiconductor devices", "type": "top-notch", "year_created": "2020", "key_features": ["7nm process technology", "Multi-instance GPU support", "Tensor cores for AI", "600GB/s memory bandwidth"], "what_it_does": "Data center GPU designed for AI training and high-performance computing. Used in machine learning research and scientific simulations.", "resource_link": "https://www.nvidia.com/en-us/data-center/a100/"},
+    {"device_name": "STM32", "manufacturer": "STMicroelectronics", "country": "Switzerland", "category": "microcontrollers", "type": "top-notch", "year_created": "2007", "key_features": ["ARM Cortex-M core", "Wide range of models", "Low power modes", "Rich peripheral set"], "what_it_does": "Family of 32-bit microcontrollers for embedded applications. Used in industrial control, automotive systems, and consumer electronics.", "resource_link": "https://en.wikipedia.org/wiki/STM32"},
+    {"device_name": "DHT22", "manufacturer": "Aosong Electronics", "country": "China", "category": "sensors and transducers", "type": "unique", "year_created": "2010", "key_features": ["Measures temperature and humidity", "Digital output", "Low cost", "Easy to use"], "what_it_does": "Digital sensor for measuring temperature and humidity. Used in weather stations, HVAC systems, and IoT projects.", "resource_link": "https://learn.adafruit.com/dht"},
+    {"device_name": "LM317", "manufacturer": "Texas Instruments", "country": "USA", "category": "power electronics", "type": "top-notch", "year_created": "1976", "key_features": ["Adjustable voltage regulator", "1.2V to 37V output", "Current limiting", "Thermal protection"], "what_it_does": "Voltage regulator IC for power supply circuits. Used in electronics projects, battery chargers, and power management.", "resource_link": "https://en.wikipedia.org/wiki/LM317"},
+    {"device_name": "HC-SR04", "manufacturer": "Generic", "country": "China", "category": "sensors and transducers", "type": "unique", "year_created": "2010", "key_features": ["Ultrasonic distance measurement", "2cm to 400cm range", "Low cost", "Simple interface"], "what_it_does": "Ultrasonic sensor for measuring distance using sound waves. Used in robotics, obstacle detection, and parking sensors.", "resource_link": "https://www.sparkfun.com/products/15569"},
+]
+
+
+class TechContentGenerator(BaseContentGenerator):
+    """Generate tech device content with anti-duplicate system."""
     
     DEVICE_CATEGORIES = [
-        "electronic engineering devices",
-        "semiconductor devices",
-        "microcontrollers",
-        "sensors and transducers",
-        "power electronics",
-        "communication devices",
-        "embedded systems",
-        "electronic test equipment",
-        "robotics and automation",
-        "industrial electronics",
-        "electronic components",
-        "circuit boards and PCBs"
+        "electronic engineering devices", "semiconductor devices", "microcontrollers",
+        "sensors and transducers", "power electronics", "communication devices",
+        "embedded systems", "electronic test equipment", "robotics and automation",
+        "industrial electronics", "electronic components", "circuit boards and PCBs"
     ]
     
     COUNTRIES = [
@@ -34,10 +43,16 @@ class TechContentGenerator:
     ]
     
     def __init__(self, budget_guard):
-        """Initialize tech content generator."""
-        self.budget_guard = budget_guard
+        """Initialize tech content generator with anti-duplicate system."""
+        super().__init__(
+            budget_guard=budget_guard,
+            content_type="tech",
+            history_file="data/tech_history.json",
+            template_pool=TECH_TEMPLATE_POOL
+        )
+        
         self.openai_api_key = os.getenv("OPENAI_API_KEY", "")
-        self.openai_model = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
+        self.openai_model = os.getenv("OPENAI_MODEL", "gpt-5.2")
         self.llm_enabled = os.getenv("LLM_ENABLED", "off").lower() == "on"
         
         if self.llm_enabled and self.openai_api_key:
@@ -46,50 +61,32 @@ class TechContentGenerator:
             self.client = None
             logger.warning("LLM disabled for tech content")
     
-    def generate_tech_post(self, used_devices: List[str] = None, used_countries: List[str] = None) -> Optional[Dict]:
-        """Generate tech device post."""
-        used_devices = used_devices or []
-        used_countries = used_countries or []
+    def _generate_content(self, used_items: List[str]) -> Optional[Dict]:
+        """Generate tech device content using LLM."""
+        if not self.client or not self.llm_enabled:
+            return None
         
-        if self.client and self.llm_enabled:
-            return self._generate_with_llm(used_devices, used_countries)
-        else:
-            return self._generate_template(used_devices, used_countries)
-    
-    def _generate_with_llm(self, used_devices: List[str], used_countries: List[str]) -> Optional[Dict]:
-        """Generate tech device using LLM."""
         try:
             current_date = datetime.now().strftime("%Y-%m-%d")
             
-            # Choose device type (sometimes unique, sometimes top-notch)
             device_type = random.choice(self.DEVICE_CATEGORIES)
-            
-            # Choose country (prefer unused)
-            available_countries = [c for c in self.COUNTRIES if c not in used_countries]
-            if not available_countries:
-                available_countries = self.COUNTRIES
-            country = random.choice(available_countries)
-            
-            # Determine if unique or top-notch (70% unique, 30% top-notch)
+            country = random.choice(self.COUNTRIES)
             is_unique = random.random() < 0.7
             
             used_devices_context = ""
-            if used_devices:
-                used_devices_context = f"\n\nAvoid devices that were recently covered: {', '.join(used_devices[-5:])}"
+            if used_items:
+                recent_items = used_items[-10:]
+                used_devices_context = f"\n\nIMPORTANT: Avoid devices that were recently covered: {', '.join(recent_items)}\nChoose a DIFFERENT device and manufacturer."
             
-            used_countries_context = ""
-            if used_countries:
-                used_countries_context = f"\n\nPrefer countries not recently used: {', '.join(used_countries[-5:])}"
+            type_prompt = "INNOVATIVE engineering/electronic device" if is_unique else "TOP-NOTCH or FLAGSHIP engineering/electronic device"
             
-            if is_unique:
-                prompt = f"""Generate information about an INNOVATIVE engineering/electronic device from {country} in the {device_type} category.
+            prompt = f"""Generate information about a {type_prompt} from {country} in the {device_type} category.
 
 Requirements:
 1. Device should be related to ENGINEERING and ELECTRONICS (not consumer gadgets)
-2. Can be from a startup, smaller company, or innovative engineering project
-3. Should be an actual electronic/engineering device (semiconductors, sensors, microcontrollers, etc.)
-4. Include: device name, manufacturer, year of creation/release, key features (3-5), what it does (1-2 sentences MAXIMUM, no marketing language), resource link
-5. NO marketing language - avoid words like "revolutionizing", "critical", "game-changing". Use concrete facts: what it does and where it's used.
+2. Should be an actual electronic/engineering device (semiconductors, sensors, microcontrollers, etc.)
+3. Include: device name, manufacturer, year of creation/release, key features (3-5), what it does (1-2 sentences MAXIMUM, no marketing language), resource link
+4. NO marketing language - avoid words like "revolutionizing", "critical", "game-changing". Use concrete facts: what it does and where it's used.
 
 Format as JSON:
 {{
@@ -97,7 +94,7 @@ Format as JSON:
   "manufacturer": "Company Name",
   "country": "{country}",
   "category": "{device_type}",
-  "type": "unique",
+  "type": "{"unique" if is_unique else "top-notch"}",
   "year_created": "YYYY",
   "key_features": ["short feature 1", "short feature 2", "short feature 3", "short feature 4"],
   "what_it_does": "1-2 sentences MAXIMUM. What the device does and where it's used. NO marketing language, just facts.",
@@ -109,40 +106,7 @@ IMPORTANT:
 - NO marketing buzzwords (revolutionizing, critical, game-changing, etc.)
 - Use concrete facts: what it does, where it's used
 - Keep features short and specific
-
-Current date: {current_date}{used_devices_context}{used_countries_context}
-
-Return ONLY valid JSON, no additional text."""
-            else:
-                prompt = f"""Generate information about a TOP-NOTCH or FLAGSHIP engineering/electronic device from {country} in the {device_type} category.
-
-Requirements:
-1. Device should be related to ENGINEERING and ELECTRONICS (not consumer gadgets)
-2. From well-known manufacturers or leading engineering companies
-3. Should be an actual electronic/engineering device (semiconductors, sensors, microcontrollers, etc.)
-4. Include: device name, manufacturer, year of creation/release, key features (3-5), what it does (1-2 sentences MAXIMUM, no marketing language), resource link
-5. NO marketing language - avoid words like "revolutionizing", "critical", "game-changing". Use concrete facts: what it does and where it's used.
-
-Format as JSON:
-{{
-  "device_name": "Device Name",
-  "manufacturer": "Company Name",
-  "country": "{country}",
-  "category": "{device_type}",
-  "type": "top-notch",
-  "year_created": "YYYY",
-  "key_features": ["short feature 1", "short feature 2", "short feature 3", "short feature 4"],
-  "what_it_does": "1-2 sentences MAXIMUM. What the device does and where it's used. NO marketing language, just facts.",
-  "resource_link": "https://wikipedia.org/... or https://manufacturer.com/... or technical article URL"
-}}
-
-IMPORTANT:
-- "what_it_does" must be 1-2 sentences MAXIMUM
-- NO marketing buzzwords (revolutionizing, critical, game-changing, etc.)
-- Use concrete facts: what it does, where it's used
-- Keep features short and specific
-
-Current date: {current_date}{used_devices_context}{used_countries_context}
+- Current date: {current_date}{used_devices_context}
 
 Return ONLY valid JSON, no additional text."""
 
@@ -153,11 +117,10 @@ Return ONLY valid JSON, no additional text."""
                     {"role": "user", "content": prompt}
                 ],
                 max_completion_tokens=600,
+                temperature=0.7,
                 response_format={"type": "json_object"}
             )
             
-            import json
-            import re
             content = response.choices[0].message.content.strip()
             
             # Try to extract JSON if wrapped in markdown code blocks
@@ -174,7 +137,7 @@ Return ONLY valid JSON, no additional text."""
             # Validate and parse JSON
             if not content or not content.strip():
                 logger.error("Empty response from LLM for tech device")
-                return self._generate_template(used_devices, used_countries)
+                return None
             
             try:
                 data = json.loads(content)
@@ -186,7 +149,7 @@ Return ONLY valid JSON, no additional text."""
                     data = json.loads(content)
                 except Exception as e2:
                     logger.error(f"Failed to fix JSON for tech device: {e2}")
-                    return self._generate_template(used_devices, used_countries)
+                    return None
             
             # Record usage
             tokens_used = response.usage.total_tokens
@@ -198,28 +161,15 @@ Return ONLY valid JSON, no additional text."""
             
         except Exception as e:
             logger.error(f"LLM error generating tech device: {e}")
-            return self._generate_template(used_devices, used_countries)
+            return None
     
-    def _generate_template(self, used_devices: List[str], used_countries: List[str]) -> Dict:
-        """Generate template tech device when LLM unavailable."""
-        device_type = random.choice(self.DEVICE_CATEGORIES)
-        country = random.choice(self.COUNTRIES)
-        is_unique = random.random() < 0.7
-        
-        result = {
-            "device_name": "Engineering Device",
-            "manufacturer": "Engineering Company",
-            "country": country,
-            "category": device_type,
-            "type": "unique" if is_unique else "top-notch",
-            "year_created": "2020",
-            "key_features": [
-                "Feature 1",
-                "Feature 2",
-                "Feature 3"
-            ],
-            "what_it_does": f"Device for {device_type} applications. Used in industrial and engineering systems.",
-            "resource_link": "https://wikipedia.org"
-        }
-        
-        return result
+    def _extract_item_id(self, content: Dict) -> str:
+        """Extract unique identifier from tech device content."""
+        device = content.get("device_name", "Unknown")
+        manufacturer = content.get("manufacturer", "")
+        return f"{device} ({manufacturer})" if manufacturer else device
+    
+    # Legacy compatibility
+    def generate_tech_post(self, used_devices: Optional[List[str]] = None, used_countries: Optional[List[str]] = None) -> Optional[Dict]:
+        """Generate tech post (legacy method for backward compatibility)."""
+        return self.generate(used_items=used_devices)
