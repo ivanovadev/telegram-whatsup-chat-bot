@@ -4,15 +4,63 @@ Directory with tests and code quality checking tools.
 
 ## Quick Start 🚀
 
-### Security Checker
+### Run All Tests (Recommended)
 
-**One-Line Commands:**
+**One command to rule them all:**
 
 ```bash
-# Run security check
-./tests/check_security.sh
+# Run all tests and checks
+./tests/run_all.sh
+```
 
-# Or directly with Python
+This will execute:
+- ✅ Security check (`check_security.py`)
+- ✅ Code quality & comment analysis (`count_lines.py`)
+- ✅ Unit tests for code quality (`test_code_quality.py`)
+- ✅ Unit tests for database (`test_db.py`)
+
+**Example output:**
+
+```
+╔════════════════════════════════════════════════════════════╗
+║         Running All Tests & Quality Checks                ║
+╚════════════════════════════════════════════════════════════╝
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+▶ Running: Security Check (check_security.py)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+✅ PASSED: Security Check
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+▶ Running: Code Quality & Comment Analysis (count_lines.py)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+✅ PASSED: Code Quality & Comment Analysis
+
+╔════════════════════════════════════════════════════════════╗
+║                     TEST SUMMARY                           ║
+╚════════════════════════════════════════════════════════════╝
+
+Total Tests:  4
+Passed:       4
+Failed:       0
+
+╔════════════════════════════════════════════════════════════╗
+║          ✅ ALL TESTS PASSED SUCCESSFULLY! ✅              ║
+╚════════════════════════════════════════════════════════════╝
+```
+
+---
+
+### Individual Tool Usage
+
+If you need to run a specific tool separately:
+
+#### Security Checker
+
+```bash
+# Run security check for entire project
 python3 tests/check_security.py
 
 # Check specific directory
@@ -35,25 +83,112 @@ Exit code: 0
 Exit code: 1
 ```
 
-### Unit Tests
+### Individual Test Execution
 
 ```bash
-# From project root
-pytest tests/
+# Run all unit tests with verbose output
+python3 tests/test_db.py -v
+python3 tests/test_code_quality.py -v
 
-# Or specific test
-pytest tests/test_db.py
+# Or use run_all.sh to run everything
+./tests/run_all.sh
 ```
 
 ## Files
 
+### Test Runner
+
+#### `run_all.sh` - All-in-One Test Runner
+
+Runs all tests and quality checks in one command.
+
+**Usage:**
+```bash
+./tests/run_all.sh
+```
+
+**What it runs:**
+1. 🛡️ Security check (`check_security.py`)
+2. 📊 Code statistics & comment analysis (`count_lines.py`)
+3. ✅ Unit tests for code quality (`test_code_quality.py`)
+4. ✅ Unit tests for database (`test_db.py`)
+
+**Exit codes:**
+- `0` - All tests passed
+- `1` - Some tests failed
+
+---
+
+### Code Quality Tools
+
+#### `count_lines.py` - Code Counter & Comment Analyzer
+
+Count lines of code and check for unnecessary comments.
+
+**Usage:**
+```bash
+# Basic line counting
+python3 tests/count_lines.py
+
+# Check for unnecessary comments
+python3 tests/count_lines.py --check-comments
+
+# Detailed file-by-file breakdown
+python3 tests/count_lines.py --detailed
+
+# Combine all options
+python3 tests/count_lines.py --check-comments --detailed
+
+# Check specific directory
+python3 tests/count_lines.py --path group-posts-service/
+```
+
+**What it checks:**
+- ✅ Total lines, code lines, comments, blank lines
+- ✅ Code distribution by file type
+- ✅ Code distribution by service
+- ⚠️ Unnecessary comments (TODO placeholders, long separators, verbose comments)
+- ⚠️ Emoji overuse in comments
+- ⚠️ Comments >100 characters
+
+**Example output:**
+```
+📊 Scanning repository: /Users/iva/chat_bot/telegram-whatsup-chat-bot
+
+📁 Total Files: 142
+📝 Total Lines: 15,234
+💻 Code Lines: 11,567
+💬 Comment Lines: 2,145
+⬜ Blank Lines: 1,522
+📊 Code Percentage: 75.9%
+
+💬 Comment Quality:
+⚠️  Unnecessary Comments: 23
+
+📄 Files with unnecessary comments:
+  group-posts-service/content/spider_content.py
+    Line 45: # ========== SECTION ==========
+    Line 102: # TODO: Replace with actual image analysis
+```
+
 ### Unit Tests
-- `test_db.py` - unit tests for database
+
+All tests use Python's built-in `unittest` framework (no external dependencies required).
+
+- `test_db.py` - unit tests for database operations
+- `test_code_quality.py` - unit tests for code counter and comment analyzer
+
+**Run individually:**
+```bash
+# Database tests
+python3 tests/test_db.py -v
+
+# Code quality tests
+python3 tests/test_code_quality.py -v
+```
 
 ### Security Tools
 - `check_security.py` - 🛡️ script to check for Ukrainian language and sensitive information
-- `check_security.sh` - shell wrapper for quick launch
-- `example_issues.py.example` - 📖 examples of issues detected by the script
 
 ## Security Checker
 
@@ -210,7 +345,7 @@ python3 tests/check_security.py || exit 1
 
 **Before every commit:**
 ```bash
-./tests/check_security.sh && git commit -m "Your message"
+./tests/run_all.sh && git commit -m "Your message"
 ```
 
 **Git Hook (Optional):**
@@ -301,16 +436,22 @@ env/
 ### Adding New Tests
 
 1. Create `test_*.py` file in this directory
-2. Use pytest fixtures
-3. Run tests: `pytest tests/test_your_feature.py`
+2. Use Python's built-in `unittest` framework
+3. Run tests: `python3 tests/test_your_feature.py -v`
 
 **Example:**
 ```python
-import pytest
+import unittest
 
-def test_something():
-    """Test description."""
-    assert True
+class TestYourFeature(unittest.TestCase):
+    """Test cases for your feature."""
+    
+    def test_something(self):
+        """Test description."""
+        self.assertTrue(True)
+
+if __name__ == "__main__":
+    unittest.main()
 ```
 
 ## CI/CD Integration
@@ -320,11 +461,8 @@ def test_something():
 test:
   runs-on: ubuntu-latest
   steps:
-    - name: Run Tests
-      run: pytest tests/
-    
-    - name: Security Check
-      run: python3 tests/check_security.py
+    - name: Run All Tests
+      run: bash tests/run_all.sh
 ```
 
 **GitLab CI:**
@@ -347,10 +485,10 @@ security_check:
 ### Script won't run
 ```bash
 # Check permissions
-ls -la tests/check_security.*
+ls -la tests/*.py tests/*.sh
 
 # Make executable
-chmod +x tests/check_security.py tests/check_security.sh
+chmod +x tests/run_all.sh
 
 # Check Python
 python3 --version

@@ -7,8 +7,35 @@ Telegram userbot service for automated travel posts to **groups** (development/t
 - Scheduled morning and evening posts to Telegram groups
 - Country rankings with images
 - LLM-powered content generation
-- Image fetching from Unsplash
-- Duplicate prevention
+- **Spider posts with iNaturalist photos** (expert-verified, real spider photos)
+- Image fetching from Unsplash (fallback)
+- Duplicate prevention with anti-hallucination rules
+
+## 📸 Spider Content (iNaturalist Integration)
+
+Spider posts now use **real, expert-verified photos** from iNaturalist:
+- ✅ Research-grade observations only (community-verified)
+- ✅ Proper photo attribution with photographer credit
+- ✅ Location and date metadata included
+- ✅ Direct links to iNaturalist observations
+- ✅ No authentication required (public API)
+
+**Example output:**
+```
+🕷️ Nursery Web Spider (Pisaura mirabilis)
+
+📍 Where to meet: UK, Europe
+📏 Size: body 10-15mm, leg span 30-40mm
+🕸️ Behavior: Active hunter
+
+📸 Photo by naturalist_uk (iNaturalist, CC-BY-NC) • Richmond Park, London
+
+#Spider #Nature
+
+Buttons: [📖 Wikipedia] [📸 iNaturalist]
+```
+
+See [INATURALIST_INTEGRATION.md](content/INATURALIST_INTEGRATION.md) for technical details.
 
 ## Running
 

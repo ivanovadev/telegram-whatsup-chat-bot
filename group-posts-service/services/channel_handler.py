@@ -1158,11 +1158,20 @@ class ChannelHandler:
             # Format message
             message, inline_keyboard = self._format_spider_message(content)
             
-            # Get image for the spider
-            image_url = None
+            # Get spider name for database recording
             spider_name = content.get("name", "")
-            if spider_name:
-                image_url = await self._get_spider_image(spider_name)
+            
+            # Get image for the spider
+            # Priority: 1) iNaturalist photo (if available), 2) Unsplash fallback
+            image_url = content.get("photo_url")  # iNaturalist photo
+            
+            if not image_url:
+                # Fallback to Unsplash if no iNaturalist photo
+                if spider_name:
+                    image_url = await self._get_spider_image(spider_name)
+                    logger.info("Using Unsplash photo (no iNaturalist photo available)")
+            else:
+                logger.info(f"✅ Using iNaturalist photo: {content.get('photo_location', 'unknown location')}")
             
             # Post to group/channel with inline keyboard
             await self._post_to_channel(message, image_url, None, None, inline_keyboard)
@@ -1238,54 +1247,53 @@ class ChannelHandler:
         return None
     
     def _format_spider_message(self, content: dict) -> tuple:
-        """Format spider post message. Returns (message_text, inline_keyboard)."""
+        """Format spider post message (anxiety-friendly, fact-based).
+        
+        Uses new behavior-based format:
+        - "active hunter" / "web-based hunter" / "ambush predator"
+        - NO "Hunter: Yes/No"
+        - NO "Dangerous rate"
+        """
         spider_name = content.get("name", "Spider")
         scientific_name = content.get("scientific_name", "")
         countries = content.get("countries", [])
         size = content.get("size", "")
         color = content.get("color", "")
-        is_hunter = content.get("is_hunter", False)
-        hunter_desc = content.get("hunter_description", "")
-        speed = content.get("speed", "")
+        behavior = content.get("behavior", "")  # NEW: active hunter / web-based hunter / ambush predator
+        behavior_explanation = content.get("behavior_explanation", "")
         lifespan = content.get("lifespan", "")
         resource_link = content.get("resource_link", "")
+        confidence_level = content.get("confidence_level", "")  # NEW: confirmed / likely / uncertain
         
+        # Build message with anxiety-friendly structure
         message = f"🕷️ **{spider_name}**"
         if scientific_name:
             message += f" ({scientific_name})"
         message += "\n\n"
         
-        # Spider details
+        # Basic details (compact format)
         if countries:
-            message += f"📍 **Where to meet:** {', '.join(countries)}\n"
+            countries_str = ', '.join(countries) if isinstance(countries, list) else str(countries)
+            message += f"📍 **Where to meet:** {countries_str}\n"
         if size:
             message += f"📏 **Size:** {size}\n"
         if color:
             message += f"🎨 **Color:** {color}\n"
-        if is_hunter:
-            message += f"🦗 **Hunter:** Yes"
-            if hunter_desc:
-                message += f" - {hunter_desc}"
-            message += "\n"
-        else:
-            message += f"🦗 **Hunter:** No\n"
-        if speed:
-            message += f"⚡ **Speed:** {speed}\n"
+        
+        # ✅ NEW: Behavior (replaces "Hunter: Yes/No")
+        if behavior:
+            # Capitalize first letter for display
+            behavior_display = behavior.capitalize() if behavior else ""
+            message += f"🕸️ **Behavior:** {behavior_display}\n"
+            
+            # Add behavior explanation if provided (short, calming)
+            if behavior_explanation:
+                # Keep it short - first sentence only
+                explanation_short = behavior_explanation.split('.')[0] + '.'
+                message += f"   {explanation_short}\n"
+        
         if lifespan:
             message += f"⏳ **Lifespan:** {lifespan}\n"
-        
-        # Dangerous rate
-        dangerous_rate = content.get("dangerous_rate")
-        if dangerous_rate is not None:
-            try:
-                rate = int(dangerous_rate)
-                if 0 <= rate <= 10:
-                    # Visual representation
-                    filled = "🔴" * rate
-                    empty = "⚪" * (10 - rate)
-                    message += f"⚠️ **Dangerous rate:** {rate}/10 {filled}{empty}\n"
-            except (ValueError, TypeError):
-                pass
         
         message += "\n"
         
@@ -1301,22 +1309,53 @@ class ChannelHandler:
                 domain = parsed_url.netloc.replace("www.", "")
                 if not domain:
                     domain = resource_link.replace("https://", "").replace("http://", "").replace("www.", "").split("/")[0]
-                if len(domain) > 30:
+                
+                # Short domain name for source
+                if "wikipedia" in domain.lower():
+                    message += f"**Source:** [Wikipedia]({resource_link})\n\n"
+                elif len(domain) > 30:
                     domain = domain[:27] + "..."
-                message += f"**Source:** [{domain}]({resource_link})\n\n"
+                    message += f"**Source:** [{domain}]({resource_link})\n\n"
+                else:
+                    message += f"**Source:** [{domain}]({resource_link})\n\n"
             except:
                 message += f"**Source:** {resource_link}\n\n"
         
-        # Tags
-        message += "#Spider #Nature\n"
+        # Photo attribution (if from iNaturalist)
+        photo_attribution = content.get("photo_attribution")
+        photo_location = content.get("photo_location")
+        if photo_attribution:
+            message += f"\n\n📸 {photo_attribution}"
+            if photo_location:
+                message += f" • {photo_location}"
         
-        # Create inline keyboard for source
-        inline_keyboard = None
+        # Tags
+        message += "\n\n#Spider #Nature"
+        
+        # Create inline keyboard with Wikipedia + iNaturalist
+        inline_keyboard = []
+        buttons_row = []
+        
         if resource_link:
             button_link = resource_link
             if not button_link.startswith(("http://", "https://")):
                 button_link = "https://" + button_link
-            inline_keyboard = [[Button.url("Source", button_link)]]
+            
+            button_text = "📖 Source"
+            if "wikipedia" in button_link.lower():
+                button_text = "📖 Wikipedia"
+            
+            buttons_row.append(Button.url(button_text, button_link))
+        
+        # Add iNaturalist button if photo is from there
+        inaturalist_url = content.get("inaturalist_url")
+        if inaturalist_url:
+            buttons_row.append(Button.url("📸 iNaturalist", inaturalist_url))
+        
+        if buttons_row:
+            inline_keyboard = [buttons_row]
+        else:
+            inline_keyboard = None
         
         return message, inline_keyboard
     
@@ -1404,7 +1443,7 @@ class ChannelHandler:
             else:
                 message += f"— {author}\n\n"
         
-        # Advice: 1-2 sentences max, concrete (shortened to "Takeaway")
+        # Advice: just add it directly without "Takeaway" label
         if advice:
             # Shorten advice to 1-2 sentences
             sentences = advice.split('.')
@@ -1412,81 +1451,19 @@ class ChannelHandler:
             if short_advice and not short_advice.endswith('.'):
                 short_advice += '.'
             if short_advice:
-                message += f"💡 **Takeaway:** {short_advice}\n\n"
+                message += f"{short_advice}\n\n"
         
-        # Category: emoji + word, not separate block
-        category_line = ""
-        if category:
-            category_clean = category.replace("_", " ").title()
-            # Map common categories to emojis
-            category_emoji = {
-                "motivational": "🏷️ Motivation",
-                "philosophical": "🏷️ Philosophy",
-                "business": "🏷️ Business",
-                "life advice": "🏷️ Life",
-                "wisdom": "🏷️ Wisdom",
-                "success": "🏷️ Success"
-            }.get(category.lower(), f"🏷️ {category_clean}")
-            category_line = category_emoji
+        # Category is not needed - removed for cleaner output
         
-        # Source: "Source: Wikipedia" format
-        source_text = ""
-        if resource_link:
-            # Ensure link has protocol
-            if not resource_link.startswith(("http://", "https://")):
-                resource_link = "https://" + resource_link
-            
-            try:
-                from urllib.parse import urlparse
-                parsed_url = urlparse(resource_link)
-                domain = parsed_url.netloc.replace("www.", "")
-                if not domain:
-                    domain = resource_link.replace("https://", "").replace("http://", "").replace("www.", "").split("/")[0]
-                
-                # Short domain name
-                if "wikipedia" in domain.lower():
-                    source_text = "🔗 Source: Wikipedia"
-                elif "wikiquote" in domain.lower():
-                    source_text = "🔗 Source: Wikiquote"
-                else:
-                    # Shorten long domains
-                    if len(domain) > 20:
-                        domain = domain[:17] + "..."
-                    source_text = f"🔗 Source: {domain}"
-            except:
-                source_text = "🔗 Source"
-        
-        # Add category and source
-        if category_line and source_text:
-            message += f"{category_line}\n{source_text}\n\n"
-        elif category_line:
-            message += f"{category_line}\n\n"
-        elif source_text:
-            message += f"{source_text}\n\n"
+        # Source: Wikipedia format (removed text, using only button below)
+        # No need for text source since we have clickable button
         
         # Country name signature for image
         if country_name:
             message += f"📍 {country_name}\n\n"
         
-        # Tags: 2-3 max
-        tags = []
-        if category:
-            # Use category as tag
-            category_tag = category.replace(" ", "").replace("_", "")
-            if category_tag.lower() not in ["motivational", "philosophical"]:
-                tags.append(f"#{category_tag}")
-        tags.append("#QuoteOfTheDay")
-        # Add one more if we have space
-        if len(tags) < 3:
-            if category and "motivational" in category.lower():
-                tags.append("#Motivation")
-            elif category and "philosophical" in category.lower():
-                tags.append("#Wisdom")
-            else:
-                tags.append("#Wisdom")
-        
-        # Limit to 3 tags max
-        tags = tags[:3]
+        # Tags: simplified
+        tags = ["#QuoteOfTheDay", "#Wisdom"]
         message += " ".join(tags)
         
         # Create inline keyboard for source
@@ -1495,7 +1472,15 @@ class ChannelHandler:
             button_link = resource_link
             if not button_link.startswith(("http://", "https://")):
                 button_link = "https://" + button_link
-            inline_keyboard = [[Button.url("Source", button_link)]]
+            
+            # Choose button text based on source
+            button_text = "📖 Source"
+            if "wikipedia" in button_link.lower():
+                button_text = "📖 Wikipedia"
+            elif "wikiquote" in button_link.lower():
+                button_text = "📖 Wikiquote"
+            
+            inline_keyboard = [[Button.url(button_text, button_link)]]
         
         return message, inline_keyboard
     

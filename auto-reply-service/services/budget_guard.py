@@ -15,10 +15,7 @@ class BudgetGuard:
         self.llm_enabled = os.getenv("LLM_ENABLED", "off").lower() == "on"
     
     def can_use_llm(self) -> tuple[bool, Optional[str]]:
-        """
-        Check if LLM can be used.
-        Returns (can_use, reason_if_no)
-        """
+        """Check if LLM can be used. Returns (can_use, reason_if_no)."""
         if not self.llm_enabled:
             return False, "LLM disabled in settings"
         
