@@ -21,6 +21,7 @@ Telegram userbot service for automated travel posts to **channels** (production 
 ### Manual Setup
 
 ```bash
+
 # Create virtual environment (first time)
 python3 -m venv venv
 source venv/bin/activate  # On Windows: venv\Scripts\activate
@@ -36,6 +37,7 @@ Create `.env` file in this directory:
 
 ```bash
 cp .env.example .env
+
 # Edit .env with your credentials
 ```
 
@@ -48,6 +50,25 @@ Required variables:
 - `UNSPLASH_ACCESS_KEY` (for images)
 
 See `.env.example` for complete list.
+
+## Project Structure
+
+```
+channel-posts-service/
+├── app/
+│   └── main.py
+├── services/
+│   ├── channel_content.py
+│   ├── channel_handler.py
+│   └── image_service.py
+├── storage/
+│   └── db.py
+├── .env
+├── .env.example
+├── README.md
+├── requirements.txt
+└── run.sh
+```
 
 ## Production Use
 

@@ -9,6 +9,7 @@ This directory contains test scripts for the group-posts-service.
 ## Quick Start
 
 ```bash
+
 # Run all tests (14 commands)
 ./test_services.sh
 
@@ -55,6 +56,7 @@ cd /Users/iva/chat_bot/telegram-whatsup-chat-bot/group-posts-service/tests
 
 Test only specific commands:
 ```bash
+
 # Test single service
 ./test_services.sh travel
 
@@ -65,6 +67,7 @@ Test only specific commands:
 ### Option 3: Test All Services
 
 ```bash
+
 # Test all 14 services (default)
 ./test_services.sh
 ```
@@ -73,7 +76,7 @@ Test only specific commands:
 
 1. `status` - Check budget, LLM status, and daily post counts
 2. `travel` - Travel post (random morning/evening)
-3. `travel morning` - Morning travel post  
+3. `travel morning` - Morning travel post
 4. `news` - News summary (Bloomberg, BBC, Ukrainian Truth)
 5. `tech` - Tech device post
 6. `person` - Famous person post
@@ -152,6 +155,7 @@ See [PROBLEMS_SUMMARY.md](PROBLEMS_SUMMARY.md) for details and improvement plans
 
 ### Budget exhausted
 ```bash
+
 # Check budget status
 ./test_services.sh status
 
@@ -228,6 +232,7 @@ The validation tests (`test_content_validation.py`) prevent regressions by check
 ### How to Run Validation Tests
 
 ```bash
+
 # Run all validation tests
 cd /Users/iva/chat_bot/telegram-whatsup-chat-bot/group-posts-service
 python3 tests/test_content_validation.py
@@ -268,6 +273,7 @@ Testing all changes from today to prevent regressions
 ### Integration with CI/CD
 
 ```bash
+
 # Run both command tests and validation tests
 ./test_services.sh && python3 test_content_validation.py
 
@@ -278,6 +284,7 @@ Testing all changes from today to prevent regressions
 
 For automated testing:
 ```bash
+
 # Run command tests
 timeout 300 ./test_services.sh
 

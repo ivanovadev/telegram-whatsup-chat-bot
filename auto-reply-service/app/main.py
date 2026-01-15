@@ -4,8 +4,8 @@ import asyncio
 from dotenv import load_dotenv
 from telethon import TelegramClient
 from storage.db import Database
-from shared_services.budget_guard import BudgetGuard
-from shared_services.suggester import Suggester
+from services.budget_guard import BudgetGuard
+from services.suggester import Suggester
 from handlers.inbox import InboxHandler
 from handlers.control import ControlHandler
 
@@ -53,6 +53,25 @@ async def main():
     
     me = await client.get_me()
     print(f"✅ Authorized as: {me.first_name} (@{me.username})")
+    
+    # Verify control chat access
+    control_chat_id = os.getenv("CONTROL_CHAT_ID", "me")
+    if control_chat_id != "me":
+        try:
+            control_id = int(control_chat_id)
+            control_entity = await client.get_entity(control_id)
+            print(f"✅ Control chat found: {getattr(control_entity, 'title', 'Unknown')}")
+        except ValueError:
+            # Try as username
+            try:
+                control_entity = await client.get_entity(control_chat_id)
+                print(f"✅ Control chat found: {getattr(control_entity, 'title', 'Unknown')}")
+            except Exception as e:
+                print(f"⚠️  Warning: Cannot access control chat {control_chat_id}: {e}")
+                print(f"💡 Make sure you've added your account to the channel as admin")
+        except Exception as e:
+            print(f"⚠️  Warning: Cannot access control chat {control_chat_id}: {e}")
+            print(f"💡 Make sure you've added your account to the channel as admin")
     
     # Initialize components
     print("📦 Initializing components...")

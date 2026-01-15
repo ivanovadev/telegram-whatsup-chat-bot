@@ -14,7 +14,7 @@ telegram-whatsup-chat-bot/
 ├── auto-reply-service/      # Auto-reply microservice
 │   ├── app/
 │   ├── handlers/           # inbox, control
-│   ├── shared_services/    # suggester, budget_guard, channel_content, image_service
+│   ├── services/           # suggester, budget_guard
 │   ├── storage/            # database
 │   └── requirements.txt
 │
@@ -43,19 +43,23 @@ telegram-whatsup-chat-bot/
 Each service has its own `.env` file. Configure each service separately:
 
 ```bash
+
 # Auto-Reply Service
 cd auto-reply-service
 cp .env.example .env
+
 # Edit .env with your credentials
 
 # Group Posts Service (Dev)
 cd ../group-posts-service
 cp .env.example .env
+
 # Edit .env with your credentials
 
 # Channel Posts Service (Production)
 cd ../channel-posts-service
 cp .env.example .env
+
 # Edit .env with your credentials
 ```
 
@@ -175,8 +179,8 @@ Handles incoming private messages:
 - `app/main.py` - Entry point
 - `handlers/inbox.py` - Incoming message handler
 - `handlers/control.py` - Control chat commands
-- `shared_services/suggester.py` - Response generation
-- `shared_services/budget_guard.py` - Cost control
+- `services/suggester.py` - Response generation
+- `services/budget_guard.py` - Cost control
 
 ### Group Posts Service (Dev)
 
@@ -234,7 +238,7 @@ Each service stores:
 
 ### Auto-Reply Service
 - ✅ Telegram userbot (Telethon)
-- ✅ LLM integration (OpenAI GPT-4o-mini)
+- ✅ LLM integration (OpenAI GPT-5.2)
 - ✅ Template fallback
 - ✅ Whitelist support
 - ✅ Busy mode
@@ -259,49 +263,88 @@ Each service stores:
 auto-reply-service/
 ├── app/
 │   └── main.py
+├── data/
 ├── handlers/
-│   ├── inbox.py
-│   └── control.py
-├── shared_services/
-│   ├── suggester.py
+│   ├── control.py
+│   └── inbox.py
+├── services/
 │   ├── budget_guard.py
-│   ├── channel_content.py
-│   └── image_service.py
-└── storage/
-    └── db.py
+│   └── suggester.py
+├── storage/
+│   └── db.py
+├── .env
+├── .env.example
+├── README.md
+├── get_channel_id.py
+├── requirements.txt
+└── run.sh
 
 group-posts-service/
 ├── app/
 │   └── main.py
-├── content/              # Content generators
-│   ├── channel_content.py
-│   ├── person_content.py
-│   ├── tech_content.py
-│   ├── spider_content.py
-│   ├── quote_content.py
+├── content/
 │   ├── africa_content.py
+│   ├── base_content_generator.py
+│   ├── channel_content.py
 │   ├── london_content.py
+│   ├── person_content.py
+│   ├── quote_content.py
+│   ├── spider_content.py
+│   ├── tech_content.py
 │   ├── uk_content.py
-│   ├── job_content.py
 │   └── weather_content.py
-└── services/
-    ├── channel_handler.py
-    ├── image_service.py
-    ├── news_service.py
-    ├── ukraine_news_service.py
-    └── services_list.py
+├── data/
+│   ├── bot.db
+│   ├── person_history.json
+│   ├── quote_history.json
+│   ├── session.session
+│   ├── session_test.session
+│   ├── spider_history.json
+│   ├── tech_history.json
+│   └── weather_api_calls.json
+├── services/
+│   ├── channel_handler.py
+│   ├── image_service.py
+│   ├── job_content.py
+│   ├── news_service.py
+│   ├── services_list.py
+│   └── ukraine_news_service.py
+├── storage/
+│   └── db.py
+├── tests/
+│   ├── .checklist
+│   ├── README.md
+│   ├── test_content_validation.py
+│   ├── test_services.py
+│   └── test_services.sh
+├── .env
+├── .env.example
+├── README.md
+├── check_weather_api_limit.py
+├── requirements.txt
+├── run.sh
+└── test_weather_api.py
 
 channel-posts-service/
 ├── app/
 │   └── main.py
-└── services/
-    ├── channel_handler.py
-    └── ... (uses shared_services for content/image)
+├── services/
+│   ├── channel_content.py
+│   ├── channel_handler.py
+│   └── image_service.py
+├── storage/
+│   └── db.py
+├── .env
+├── .env.example
+├── README.md
+├── requirements.txt
+└── run.sh
 ```
 
 ### Running Tests
 
 ```bash
+
 # From project root
 pytest
 ```

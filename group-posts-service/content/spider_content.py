@@ -1,21 +1,18 @@
-"""Fact-based, anxiety-friendly spider content generator.
+"""Cute, tiny spider content generator - arachnophobia-friendly educational posts.
 
-Architecture: Constraint-based filtering prevents misidentifications.
-Flow: Infer constraints → Filter pool → Select spider → Fetch Wikipedia → LLM rephrase
+🕸️ MISSION: Help people overcome fear by showing SMALL, HARMLESS, CUTE spiders only!
 
-Rule №0 (MANDATORY - Spider Existence Check):
-If image does NOT show 8 legs, cephalothorax+abdomen, jointed legs → NOT a spider. STOP.
+Architecture: Size-based filtering ensures only tiny spiders are shown.
+Flow: Filter by size (max 15mm body) → Select spider → Fetch Wikipedia → LLM rephrase
 
-Rule №0.5 (EGG SAC SHORT-CIRCUIT - NO RETRY):
-If egg sac visible AND spider on vegetation → Nursery web spider (Pisauridae). Period.
-DO NOT consider: tarantulas, wolf spiders, house spiders, Anyphaena, orb-weavers.
+CORE PRINCIPLES:
+- 🐛 SMALL ONLY: Maximum 15mm body length (no giant spiders!)
+- 🥰 CUTE: Jumping spiders, tiny orb-weavers, house spiders
+- 📚 EDUCATIONAL: Facts that reduce fear, not increase it
+- ❌ NO BIG SPIDERS: No tarantulas, huntsman, large orb-weavers
 
-Key Rules:
-- Orb web visible → MUST be Araneidae (never Lycosidae/Phoneutria/trapdoor)
-- Egg sac → likely Pisauridae/Lycosidae (never Theraphosidae)
-- Trapdoor spiders → burrow visible, NO webs
-- Wandering spiders (Phoneutria) → ground only, NO webs
-- Behavior: "active hunter" / "web-based hunter" / "ambush predator"
+Target audience: People with arachnophobia who want to learn
+Goal: Make spiders feel approachable and less scary
 """
 import os
 import logging
@@ -115,76 +112,54 @@ BEHAVIOR_MAP = {
     "Theraphosidae": "ambush predator",
 }
 
-# IDENTIFICATION_POOL: Safe, common species for image-based identification
-IDENTIFICATION_POOL = [
-    # EUROPE
-    {"name": "Common House Spider", "scientific_name": "Tegenaria domestica", "family": "Agelenidae", 
-     "size": "body 7-10mm, leg span 20-30mm", "lifespan": "1-2 years", "countries": ["UK", "Ireland", "Europe"]},
-    {"name": "Garden Cross Spider", "scientific_name": "Araneus diadematus", "family": "Araneidae",
-     "size": "body 10-18mm, leg span 20-35mm", "lifespan": "1 year", "countries": ["UK", "Europe"]},
+# CUTE_TINY_SPIDER_POOL: Small (max 15mm body), harmless, approachable spiders
+# 🥰 ARACHNOPHOBIA-FRIENDLY: These spiders are perfect for educational content
+# Maximum body size: 15mm (smaller = cuter and less scary!)
+CUTE_TINY_SPIDER_POOL = [
+    # 🕷️ JUMPING SPIDERS (tiny, big eyes, VERY cute!)
     {"name": "Zebra Jumping Spider", "scientific_name": "Salticus scenicus", "family": "Salticidae",
-     "size": "body 5-7mm, leg span 10-15mm", "lifespan": "1-2 years", "countries": ["UK", "Europe", "North America"]},
-    {"name": "Nursery Web Spider", "scientific_name": "Pisaura mirabilis", "family": "Pisauridae",
-     "size": "body 10-15mm, leg span 30-40mm", "lifespan": "2 years", "countries": ["UK", "Europe"]},
-    {"name": "Missing Sector Orb Weaver", "scientific_name": "Zygiella x-notata", "family": "Araneidae",
-     "size": "body 5-8mm, leg span 15-20mm", "lifespan": "1 year", "countries": ["UK", "Europe"]},
-    {"name": "Common Cellar Spider", "scientific_name": "Pholcus phalangioides", "family": "Pholcidae",
-     "size": "body 7-10mm, leg span 40-50mm", "lifespan": "2-3 years", "countries": ["Europe", "North America", "Asia"]},
-    {"name": "False Widow Spider", "scientific_name": "Steatoda nobilis", "family": "Theridiidae",
-     "size": "body 8-14mm, leg span 20-30mm", "lifespan": "1-2 years", "countries": ["UK", "Ireland", "Europe"]},
-    {"name": "Wasp Spider", "scientific_name": "Argiope bruennichi", "family": "Araneidae",
-     "size": "body 10-17mm, leg span 25-40mm", "lifespan": "1 year", "countries": ["Europe", "Asia"]},
-    {"name": "Giant House Spider", "scientific_name": "Eratigena atrica", "family": "Agelenidae",
-     "size": "body 10-18mm, leg span 45-75mm", "lifespan": "2-3 years", "countries": ["UK", "Europe"]},
-    
-    # ASIA
-    {"name": "Joro Spider", "scientific_name": "Trichonephila clavata", "family": "Nephilidae",
-     "size": "body 17-25mm, leg span 75-100mm", "lifespan": "1 year", "countries": ["Japan", "Korea", "China"]},
-    {"name": "Giant Golden Orb-Weaver", "scientific_name": "Nephila pilipes", "family": "Nephilidae",
-     "size": "body 30-50mm, leg span 100-150mm", "lifespan": "1 year", "countries": ["Asia", "Australia"]},
-    {"name": "Huntsman Spider", "scientific_name": "Heteropoda venatoria", "family": "Sparassidae",
-     "size": "body 20-30mm, leg span 100-130mm", "lifespan": "2 years", "countries": ["Asia", "Australia", "Americas"]},
+     "size": "body 5-7mm, leg span 10-15mm", "body_mm": 7, "lifespan": "1-2 years", 
+     "countries": ["UK", "Europe", "North America"], "cuteness": "⭐⭐⭐⭐⭐"},
     {"name": "Asian Jumping Spider", "scientific_name": "Hasarius adansoni", "family": "Salticidae",
-     "size": "body 6-9mm, leg span 12-18mm", "lifespan": "1 year", "countries": ["Asia", "Africa", "Americas"]},
-    {"name": "St Andrew's Cross Spider", "scientific_name": "Argiope keyserlingi", "family": "Araneidae",
-     "size": "body 10-16mm, leg span 30-50mm", "lifespan": "1 year", "countries": ["Australia", "Asia"]},
-    {"name": "Asian Forest Scorpion Spider", "scientific_name": "Pseudopoda prompta", "family": "Sparassidae",
-     "size": "body 15-25mm, leg span 80-120mm", "lifespan": "2 years", "countries": ["Southeast Asia"]},
-    
-    # NORTH AMERICA
+     "size": "body 6-9mm, leg span 12-18mm", "body_mm": 9, "lifespan": "1 year", 
+     "countries": ["Asia", "Africa", "Americas"], "cuteness": "⭐⭐⭐⭐⭐"},
     {"name": "Bold Jumping Spider", "scientific_name": "Phidippus audax", "family": "Salticidae",
-     "size": "body 8-15mm, leg span 15-25mm", "lifespan": "1 year", "countries": ["USA", "Canada", "Mexico"]},
-    {"name": "American House Spider", "scientific_name": "Parasteatoda tepidariorum", "family": "Theridiidae",
-     "size": "body 5-8mm, leg span 12-20mm", "lifespan": "1 year", "countries": ["USA", "Canada", "worldwide"]},
-    {"name": "Black and Yellow Garden Spider", "scientific_name": "Argiope aurantia", "family": "Araneidae",
-     "size": "body 19-28mm, leg span 50-75mm", "lifespan": "1 year", "countries": ["USA", "Canada", "Mexico"]},
-    {"name": "Wolf Spider", "scientific_name": "Tigrosa helluo", "family": "Lycosidae",
-     "size": "body 16-21mm, leg span 40-60mm", "lifespan": "1-2 years", "countries": ["USA", "Canada"]},
-    {"name": "Spiny Orb-Weaver", "scientific_name": "Gasteracantha cancriformis", "family": "Araneidae",
-     "size": "body 5-9mm, leg span 10-15mm", "lifespan": "1 year", "countries": ["USA", "Caribbean"]},
-    {"name": "Marbled Cellar Spider", "scientific_name": "Holocnemus pluchei", "family": "Pholcidae",
-     "size": "body 7-10mm, leg span 40-50mm", "lifespan": "2 years", "countries": ["USA", "Mediterranean"]},
-    {"name": "Green Lynx Spider", "scientific_name": "Peucetia viridans", "family": "Oxyopidae",
-     "size": "body 12-22mm, leg span 30-50mm", "lifespan": "1 year", "countries": ["USA", "Mexico", "Central America"]},
+     "size": "body 8-15mm, leg span 15-25mm", "body_mm": 15, "lifespan": "1 year", 
+     "countries": ["USA", "Canada", "Mexico"], "cuteness": "⭐⭐⭐⭐⭐"},
     
-    # SOUTH AMERICA
-    {"name": "Pumpkin Spider", "scientific_name": "Argiope argentata", "family": "Araneidae",
-     "size": "body 10-24mm, leg span 40-60mm", "lifespan": "1 year", "countries": ["South America", "Central America"]},
+    # 🏠 HOUSE SPIDERS (tiny, harmless, common indoors)
+    {"name": "Common House Spider", "scientific_name": "Tegenaria domestica", "family": "Agelenidae", 
+     "size": "body 7-10mm, leg span 20-30mm", "body_mm": 10, "lifespan": "1-2 years", 
+     "countries": ["UK", "Ireland", "Europe"], "cuteness": "⭐⭐⭐⭐"},
+    {"name": "American House Spider", "scientific_name": "Parasteatoda tepidariorum", "family": "Theridiidae",
+     "size": "body 5-8mm, leg span 12-20mm", "body_mm": 8, "lifespan": "1 year", 
+     "countries": ["USA", "Canada", "worldwide"], "cuteness": "⭐⭐⭐⭐"},
+    
+    # 🕸️ TINY ORB-WEAVERS (small, beautiful webs)
+    {"name": "Missing Sector Orb Weaver", "scientific_name": "Zygiella x-notata", "family": "Araneidae",
+     "size": "body 5-8mm, leg span 15-20mm", "body_mm": 8, "lifespan": "1 year", 
+     "countries": ["UK", "Europe"], "cuteness": "⭐⭐⭐⭐"},
+    {"name": "Spiny Orb-Weaver", "scientific_name": "Gasteracantha cancriformis", "family": "Araneidae",
+     "size": "body 5-9mm, leg span 10-15mm", "body_mm": 9, "lifespan": "1 year", 
+     "countries": ["USA", "Caribbean"], "cuteness": "⭐⭐⭐⭐⭐"},
+    {"name": "Garden Cross Spider", "scientific_name": "Araneus diadematus", "family": "Araneidae",
+     "size": "body 10-14mm, leg span 20-30mm", "body_mm": 14, "lifespan": "1 year", 
+     "countries": ["UK", "Europe"], "cuteness": "⭐⭐⭐⭐"},
+    
+    # 🦵 CELLAR SPIDERS (very thin legs, harmless, helpful)
+    {"name": "Common Cellar Spider", "scientific_name": "Pholcus phalangioides", "family": "Pholcidae",
+     "size": "body 7-10mm, leg span 40-50mm", "body_mm": 10, "lifespan": "2-3 years", 
+     "countries": ["Europe", "North America", "Asia"], "cuteness": "⭐⭐⭐"},
+    {"name": "Marbled Cellar Spider", "scientific_name": "Holocnemus pluchei", "family": "Pholcidae",
+     "size": "body 7-10mm, leg span 40-50mm", "body_mm": 10, "lifespan": "2 years", 
+     "countries": ["USA", "Mediterranean"], "cuteness": "⭐⭐⭐"},
 ]
 
-# EDUCATION_POOL: Exotic/dangerous species - ONLY for educational posts WITHOUT image identification
-EDUCATION_POOL = [
-    {"name": "Brazilian Wandering Spider", "scientific_name": "Phoneutria fera", "family": "Ctenidae",
-     "size": "body 30-50mm, leg span 130-150mm", "lifespan": "1-2 years", "countries": ["Brazil", "Amazon"]},
-    {"name": "Goliath Birdeater", "scientific_name": "Theraphosa blondi", "family": "Theraphosidae",
-     "size": "body 80-100mm, leg span 250-300mm", "lifespan": "10-15 years", "countries": ["Brazil", "Venezuela", "Guyana"]},
-    {"name": "Chilean Rose Tarantula", "scientific_name": "Grammostola rosea", "family": "Theraphosidae",
-     "size": "body 40-60mm, leg span 120-150mm", "lifespan": "15-20 years", "countries": ["Chile", "Argentina"]},
-    {"name": "Chinese Hourglass Spider", "scientific_name": "Cyclocosmia latusicosta", "family": "Halonoproctidae",
-     "size": "body 15-20mm, leg span 25-35mm", "lifespan": "3-5 years", "countries": ["China", "Vietnam"]},
-    {"name": "Japanese Trapdoor Spider", "scientific_name": "Latouchia swinhoei", "family": "Halonoproctidae",
-     "size": "body 20-30mm, leg span 40-50mm", "lifespan": "5-10 years", "countries": ["Japan", "Taiwan"]},
-]
+# Legacy pool kept for backward compatibility - but filtered to only small spiders
+IDENTIFICATION_POOL = CUTE_TINY_SPIDER_POOL
+
+# NO SCARY SPIDERS! We only show tiny, cute, harmless spiders
+# Big tarantulas, huntsman spiders, wandering spiders are EXCLUDED for arachnophobia-friendly content
 
 # Legacy alias for backwards compatibility
 GLOBAL_SPIDER_POOL = IDENTIFICATION_POOL
@@ -317,12 +292,12 @@ class SpiderContentGenerator:
         # 🔒 EGG SAC SHORT-CIRCUIT
         if constraints.get("has_egg_sac") and constraints.get("environment") == "vegetation":
             logger.info("Egg sac + vegetation → Forcing Pisauridae")
-            filtered_pool = [s for s in IDENTIFICATION_POOL if s["family"] == "Pisauridae"]
+            filtered_pool = [s for s in CUTE_TINY_SPIDER_POOL if s["family"] == "Pisauridae"]
         else:
-            # Filter IDENTIFICATION_POOL by constraints
-            filtered_pool = self._filter_pool_by_constraints(IDENTIFICATION_POOL, constraints)
+            # Filter CUTE_TINY_SPIDER_POOL by constraints (only small, cute spiders!)
+            filtered_pool = self._filter_pool_by_constraints(CUTE_TINY_SPIDER_POOL, constraints)
         
-        logger.info(f"Filtered pool: {len(filtered_pool)}/{len(IDENTIFICATION_POOL)} candidates")
+        logger.info(f"Filtered pool (CUTE TINY): {len(filtered_pool)}/{len(CUTE_TINY_SPIDER_POOL)} candidates")
         
         # FAIL FAST: If no candidates, return generic
         if not filtered_pool:
@@ -370,13 +345,24 @@ class SpiderContentGenerator:
                 current_date = datetime.now().strftime("%Y-%m-%d")
                 
                 # Use LLM to rephrase Wikipedia facts
-                system_prompt = """You are a fact-based science writer creating educational spider content for people with arachnophobia.
+                system_prompt = """You are a gentle science educator creating CUTE, TINY spider content for people with arachnophobia.
 
-CRITICAL RULE: You will receive VERIFIED FACTS from Wikipedia. Your job is to REPHRASE them into anxiety-friendly format.
+🎯 YOUR MISSION: Make spiders feel approachable, small, and NOT scary!
+
+🥰 TONE RULES:
+- Use words like "tiny", "little", "small", "cute", "harmless", "helpful"
+- Emphasize how SMALL the spider is (max 15mm body!)
+- Big eyes on jumping spiders = adorable!
+- Focus on how they help us (eating mosquitoes, flies)
+- Use friendly, warm language
+
+CRITICAL RULE: You will receive VERIFIED FACTS from Wikipedia. Your job is to REPHRASE them into anxiety-friendly, cute format.
 
 **DO NOT ADD INFORMATION NOT IN THE SOURCE TEXT.**
 **DO NOT INVENT sizes, distributions, or behaviors.**
 **If information is missing, say "not reliably documented" or omit the field.**
+
+🚫 FORBIDDEN: Never mention big, scary, or dangerous spiders. We ONLY show tiny, cute ones!
 
 🚨 RULE №0: SPIDER EXISTENCE CHECK (MANDATORY - BEFORE ANY IDENTIFICATION)
 
@@ -730,17 +716,17 @@ CONFIDENCE LEVEL GUIDE:
 - "likely" = Characteristics match, but some uncertainty
 - "uncertain" = Family/behavior known, but species unclear
 
-POST STRUCTURE (anxiety-friendly order):
-1. Calm opening (normalize fear)
-2. Behavior description (what you see)
-3. Species identification (with confidence level)
-4. Calm explanation (why not threatening)
-5. Interesting fact (from Wikipedia only!)
-6. Gentle takeaway
+POST STRUCTURE (cute & educational order):
+1. Warm opening (normalize fear + emphasize TINY size)
+2. Behavior description (what you see) - use cute language!
+3. Species identification (with confidence level) - emphasize it's small/harmless
+4. Why this spider is actually cute/helpful (not threatening)
+5. Interesting fact (from Wikipedia only!) - make it fascinating, not scary
+6. Gentle takeaway - emphasize coexistence with these tiny helpful creatures
 
 Format as JSON:
 {{
-  "calm_opening": "1-2 sentences normalizing fear and immediately reassuring",
+  "calm_opening": "1-2 sentences normalizing fear and immediately reassuring - EMPHASIZE HOW TINY this spider is!",
   "what_you_see": "Infer from family: web-based spiders → 'spider in a web', active hunters → 'spider on ground/vegetation', ambush → 'spider waiting motionless'",
   "name": "Common name from Wikipedia",
   "scientific_name": "{scientific_name}",
@@ -751,9 +737,9 @@ Format as JSON:
   "color": "From Wikipedia ONLY - if not stated, say 'natural camouflage coloring' or describe typical family colors",
   "behavior": "MUST be one of: 'active hunter' OR 'web-based hunter' OR 'ambush predator' (infer from family {spider.get('family', '')})",
   "behavior_explanation": "Based on Wikipedia facts - explain hunting/living habits in calming way",
-  "calm_explanation": "One paragraph explaining why not threatening - anxiety-friendly, emphasizes spider avoids humans",
-  "interesting_fact": "ONE sentence from Wikipedia extract - QUOTE or PARAPHRASE only what is written. If no interesting fact in text → omit this field or say 'varies by habitat'",
-  "gentle_takeaway": "Reassuring closing message - emphasize coexistence and spider's role",
+  "calm_explanation": "One paragraph explaining why this TINY spider is actually cute/helpful - anxiety-friendly, emphasizes spider is small and avoids humans",
+  "interesting_fact": "ONE sentence from Wikipedia extract - QUOTE or PARAPHRASE only what is written, but frame it in a CUTE/FASCINATING way (not scary). If no fact → say 'This tiny spider helps eat mosquitoes and flies'",
+  "gentle_takeaway": "Warm closing message - emphasize how these TINY spiders are our helpful neighbors",
   "lifespan": "From Wikipedia ONLY - if not stated, say 'typically 1-2 years' (most spiders)",
   "resource_link": "{wiki_facts['url']}"
 }}
@@ -1032,20 +1018,20 @@ Return ONLY valid JSON, no additional text."""
         return self._generate_template(used_spiders)
     
     def _generate_template(self, used_spiders: List[str]) -> Dict:
-        """Generate template spider content when LLM unavailable."""
+        """Generate template spider content when LLM unavailable - CUTE tiny spiders only!"""
         recent_used = set(used_spiders[-20:]) if used_spiders else set()
         
-        # Use IDENTIFICATION_POOL only (safe species)
+        # Use CUTE_TINY_SPIDER_POOL only (small, harmless species)
         available_spiders = [
-            spider for spider in IDENTIFICATION_POOL 
+            spider for spider in CUTE_TINY_SPIDER_POOL 
             if spider["scientific_name"] not in recent_used
         ]
         
         if not available_spiders:
-            available_spiders = IDENTIFICATION_POOL
+            available_spiders = CUTE_TINY_SPIDER_POOL
         
         spider_data = random.choice(available_spiders)
-        logger.info(f"Template mode: {spider_data['scientific_name']}")
+        logger.info(f"Template mode (CUTE TINY): {spider_data['scientific_name']} ({spider_data.get('body_mm', '?')}mm)")
         
         # Try to get iNaturalist photo
         photo_data = fetch_spider_photo_from_inaturalist(spider_data["scientific_name"])
@@ -1060,8 +1046,10 @@ Return ONLY valid JSON, no additional text."""
         else:
             what_you_see = "Spider sitting in or near its web"
         
+        body_size = spider_data.get('body_mm', 10)
+        
         result = {
-            "calm_opening": f"If spiders make you uncomfortable, that's completely normal. This is a {spider_data['name'].lower()}, and it poses no threat to you.",
+            "calm_opening": f"If spiders make you uncomfortable, that's completely normal. But this tiny {spider_data['name'].lower()} is only {body_size}mm long - smaller than your fingernail! It's completely harmless.",
             "what_you_see": what_you_see,
             "name": spider_data["name"],
             "scientific_name": spider_data["scientific_name"],
@@ -1071,10 +1059,10 @@ Return ONLY valid JSON, no additional text."""
             "size": spider_data["size"],
             "color": "Natural coloring for camouflage",
             "behavior": behavior,
-            "behavior_explanation": f"This spider uses {behavior} strategy. It waits for prey to come nearby and is not interested in pursuing humans.",
-            "calm_explanation": f"This spider prefers to stay in its territory and avoid confrontation. It has no reason to approach people and will move away if disturbed. Like most spiders, it is defensive rather than aggressive.",
-            "interesting_fact": "This spider helps control insect populations in its natural habitat, playing an important role in the ecosystem.",
-            "gentle_takeaway": "This spider is simply living its life in its natural habitat. It is not interested in humans and poses no threat.",
+            "behavior_explanation": f"This little spider uses {behavior} strategy. It's tiny and only interested in catching even smaller insects like mosquitoes and flies.",
+            "calm_explanation": f"This tiny spider ({body_size}mm!) is much more afraid of you than you are of it. It helps keep your home free of annoying insects and will quickly hide if you get close. These little creatures are actually quite helpful!",
+            "interesting_fact": f"Despite being so small, this spider helps control populations of mosquitoes, flies, and other pests in its habitat.",
+            "gentle_takeaway": "These tiny spiders are our helpful neighbors! They keep insect pests under control and are completely harmless to humans.",
             "lifespan": spider_data["lifespan"],
             "resource_link": f"https://en.wikipedia.org/wiki/{spider_data['scientific_name'].replace(' ', '_')}"
         }

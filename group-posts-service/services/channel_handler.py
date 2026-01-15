@@ -74,7 +74,11 @@ class ChannelHandler:
         self.uk_time = os.getenv("UK_POST_TIME", "09:50")
         self.job_morning_time = os.getenv("JOB_MORNING_TIME", "10:00")
         self.job_evening_time = os.getenv("JOB_EVENING_TIME", "10:00")  # same as morning in sequential mode
-        self.weather_time = os.getenv("WEATHER_POST_TIME", "10:10")
+        self.weather_morning_time = os.getenv("WEATHER_MORNING_TIME", "09:00")
+        self.weather_evening_time = os.getenv("WEATHER_EVENING_TIME", "19:00")
+        # Legacy support for single WEATHER_POST_TIME
+        if os.getenv("WEATHER_POST_TIME") and not os.getenv("WEATHER_MORNING_TIME"):
+            self.weather_morning_time = os.getenv("WEATHER_POST_TIME", "09:00")
         self.enabled = os.getenv("GROUP_POSTS_ENABLED", "off").lower() == "on"
         self.control_chat_id = os.getenv("CONTROL_CHAT_ID", "me")
         
@@ -284,13 +288,32 @@ class ChannelHandler:
                         
                         morning_posts = len(self.db.get_channel_posts_today("morning"))
                         evening_posts = len(self.db.get_channel_posts_today("evening"))
-                        person_posts = len(self.db.get_person_posts_today())
-                        tech_posts = len(self.db.get_tech_posts_today())
+                        spider_posts = len(self.db.get_spider_posts_today())
                         
                         status_msg += f"🌍 Morning travel: {morning_posts}\n"
                         status_msg += f"🚀 Evening travel: {evening_posts}\n"
-                        status_msg += f"👤 Person: {person_posts}\n"
-                        status_msg += f"🔧 Tech: {tech_posts}\n\n"
+                        status_msg += f"🕷️ Spider: {spider_posts}\n"
+                        
+                        # Weather API calls (from counter file)
+                        weather_api_calls = 0
+                        weather_api_limit = 10
+                        try:
+                            from pathlib import Path
+                            import json
+                            from datetime import date
+                            import os
+                            # Get service directory (parent of services/)
+                            service_dir = os.path.dirname(os.path.dirname(__file__))
+                            counter_file = Path(service_dir) / "data" / "weather_api_calls.json"
+                            if counter_file.exists():
+                                data = json.loads(counter_file.read_text(encoding="utf-8"))
+                                today = date.today().isoformat()
+                                if data.get("date") == today:
+                                    weather_api_calls = data.get("calls", 0)
+                        except Exception as e:
+                            logger.debug(f"Could not read weather API counter: {e}")
+                        
+                        status_msg += f"🌤️ Weather: API calls {weather_api_calls}/{weather_api_limit}\n\n"
                         
                         # Service status
                         status_msg += f"✅ **Service Running**\n"
@@ -383,8 +406,8 @@ class ChannelHandler:
                 
                 elif text_lower == "spider":
                     command_handled = True
-                    logger.info("🕷️ Manual spider command triggered")
-                    await event.reply("🕷️ Generating spider post...")
+                    logger.info("🕸️ Manual spider command triggered (cute spiders only)")
+                    await event.reply("🕸️ Generating educational spider post...")
                     try:
                         await self._post_spider_content()
                         await event.reply("✅ Spider post sent!")
@@ -585,7 +608,7 @@ class ChannelHandler:
             ("tech", self._post_tech_content),
             ("person", self._post_person_content),
             ("ukraine", self._post_ukraine_news_content),
-            ("spider", self._post_spider_content),
+            ("spider", self._post_spider_content),  # Educational, cute spiders only
             ("quote", self._post_quote_content),
             ("africa", self._post_africa_content),
             ("canary", self._post_london_content),
@@ -691,23 +714,7 @@ class ChannelHandler:
                                 await self._post_news_content()
                                 await asyncio.sleep(60)
                     
-                    # Check person posts (if person service is available)
-                    if self.person_service:
-                        if current_time == self.person_time:
-                            person_posts_today = self.db.get_person_posts_today()
-                            if not person_posts_today:
-                                logger.info(f"👤 Person post time reached: {self.person_time}")
-                                await self._post_person_content()
-                                await asyncio.sleep(60)
-                    
-                    # Check tech posts (if tech service is available)
-                    if self.tech_service:
-                        if current_time == self.tech_time:
-                            tech_posts_today = self.db.get_tech_posts_today()
-                            if not tech_posts_today:
-                                logger.info(f"🔧 Tech post time reached: {self.tech_time}")
-                                await self._post_tech_content()
-                                await asyncio.sleep(60)
+                    # Person and Tech posts removed from scheduler (as requested)
                     
                     # Check UK posts (if UK service is available)
                     if self.uk_service:
@@ -727,12 +734,12 @@ class ChannelHandler:
                                 await self._post_london_content()
                                 await asyncio.sleep(60)
                     
-                    # Check spider posts (if spider service is available)
+                    # Check spider posts (educational, cute spiders only)
                     if self.spider_service:
                         if current_time == self.spider_time:
                             spider_posts_today = self.db.get_spider_posts_today()
                             if not spider_posts_today:
-                                logger.info(f"🕷️ Spider post time reached: {self.spider_time}")
+                                logger.info(f"🕸️ Spider post time reached: {self.spider_time}")
                                 await self._post_spider_content()
                                 await asyncio.sleep(60)
                     
@@ -745,10 +752,14 @@ class ChannelHandler:
                                 await self._post_quote_content()
                                 await asyncio.sleep(60)
                     
-                    # Check weather posts (if weather service is available)
+                    # Check weather posts (if weather service is available) - twice per day
                     if self.weather_service:
-                        if current_time == self.weather_time:
-                            logger.info(f"🌤️ Weather post time reached: {self.weather_time}")
+                        if current_time == self.weather_morning_time:
+                            logger.info(f"🌤️ Weather post time reached (morning): {self.weather_morning_time}")
+                            await self._post_weather_content()
+                            await asyncio.sleep(60)
+                        elif current_time == self.weather_evening_time:
+                            logger.info(f"🌤️ Weather post time reached (evening): {self.weather_evening_time}")
                             await self._post_weather_content()
                             await asyncio.sleep(60)
                     
@@ -765,14 +776,10 @@ class ChannelHandler:
                             waiting_times += f" / Canary: {self.london_time}"
                         if self.spider_service:
                             waiting_times += f" / Spider: {self.spider_time}"
-                        if self.person_service:
-                            waiting_times += f" / Person: {self.person_time}"
-                        if self.tech_service:
-                            waiting_times += f" / Tech: {self.tech_time}"
                         if self.quote_service:
                             waiting_times += f" / Quote: {self.quote_time}"
                         if self.weather_service:
-                            waiting_times += f" / Weather: {self.weather_time}"
+                            waiting_times += f" / Weather: {self.weather_morning_time} / {self.weather_evening_time}"
                         logger.debug(f"🕐 Scheduler running... Current time: {current_time}, Waiting for: {waiting_times}")
                 
                 # Check every minute
@@ -1247,12 +1254,13 @@ class ChannelHandler:
         return None
     
     def _format_spider_message(self, content: dict) -> tuple:
-        """Format spider post message (anxiety-friendly, fact-based).
+        """Format spider post message (anxiety-friendly, cute, educational).
         
         Uses new behavior-based format:
         - "active hunter" / "web-based hunter" / "ambush predator"
         - NO "Hunter: Yes/No"
         - NO "Dangerous rate"
+        - Includes calm_opening, calm_explanation, gentle_takeaway for arachnophobia-friendly content
         """
         spider_name = content.get("name", "Spider")
         scientific_name = content.get("scientific_name", "")
@@ -1265,11 +1273,26 @@ class ChannelHandler:
         resource_link = content.get("resource_link", "")
         confidence_level = content.get("confidence_level", "")  # NEW: confirmed / likely / uncertain
         
+        # 🥰 CUTE & CALM FIELDS (for arachnophobia-friendly content)
+        calm_opening = content.get("calm_opening", "")
+        what_you_see = content.get("what_you_see", "")
+        calm_explanation = content.get("calm_explanation", "")
+        interesting_fact = content.get("interesting_fact", "")
+        gentle_takeaway = content.get("gentle_takeaway", "")
+        
         # Build message with anxiety-friendly structure
         message = f"🕷️ **{spider_name}**"
         if scientific_name:
             message += f" ({scientific_name})"
         message += "\n\n"
+        
+        # 🥰 START WITH CALM OPENING (if available) - this is the key to making it not scary!
+        if calm_opening:
+            message += f"{calm_opening}\n\n"
+        
+        # What you see (if available)
+        if what_you_see:
+            message += f"👀 {what_you_see}\n\n"
         
         # Basic details (compact format)
         if countries:
@@ -1296,6 +1319,18 @@ class ChannelHandler:
             message += f"⏳ **Lifespan:** {lifespan}\n"
         
         message += "\n"
+        
+        # 🥰 CALM EXPLANATION (why not threatening) - very important for arachnophobes!
+        if calm_explanation:
+            message += f"💚 {calm_explanation}\n\n"
+        
+        # 🥰 INTERESTING FACT (educational, not scary)
+        if interesting_fact:
+            message += f"💡 {interesting_fact}\n\n"
+        
+        # 🥰 GENTLE TAKEAWAY (reassuring closing)
+        if gentle_takeaway:
+            message += f"✨ {gentle_takeaway}\n\n"
         
         # Source link
         if resource_link:
@@ -2053,16 +2088,16 @@ class ChannelHandler:
     def _format_weather_message(self, content: dict) -> str:
         """Format weather forecast message.
         
-        Pattern: Clean blocks by country with weather emoji, Day/Night format.
+        Pattern: Current temp with day/night range, grouped by country.
         Example:
-            🌤️ Weather | 11 Jan 2026
+            🌤️ Weather | 15 Jan 2026
             
             ☁️ UK
-            London: 8/3°C
+            London: 4°C (↑6/↓2°C)
             
             ❄️ Ukraine
-            Bila Tserkva: 6/-1°C
-            Poltava: 5/-2°C
+            Bila Tserkva: -12°C (↑-8/↓-15°C)
+            Poltava: -13°C (↑-10/↓-16°C)
             
             🌐 Full forecast: openweathermap.org
         """
@@ -2090,16 +2125,29 @@ class ChannelHandler:
             city = city_weather.get("city", "")
             country = city_weather.get("country", "")
             emoji = city_weather.get("emoji", "☀️")
-            temp_day = city_weather.get("temp_day", 0)
-            temp_night = city_weather.get("temp_night", 0)
+            
+            # Get temperature data (new format with current temp)
+            temp_current = city_weather.get("temp_current")
+            temp_max = city_weather.get("temp_max")
+            temp_min = city_weather.get("temp_min")
+            
+            # Fallback to old format if new format not available
+            if temp_current is None:
+                temp_current = city_weather.get("temp_avg", 0)
+            if temp_max is None:
+                temp_max = city_weather.get("temp_day", 0)
+            if temp_min is None:
+                temp_min = city_weather.get("temp_night", 0)
             
             if city and country:
                 if country not in by_country:
-                    by_country[country] = {"emoji": emoji, "cities": []}
+                    by_country[country] = {"cities": []}
                 by_country[country]["cities"].append({
                     "city": city,
-                    "temp_day": temp_day,
-                    "temp_night": temp_night
+                    "emoji": emoji,  # Each city has its own weather emoji
+                    "temp_current": temp_current,
+                    "temp_max": temp_max,
+                    "temp_min": temp_min
                 })
                 
                 # Generate OpenWeather link for each city
@@ -2107,21 +2155,23 @@ class ChannelHandler:
                 city_slug = city.lower().replace(" ", "-")
                 city_links[city] = f"https://openweathermap.org/city/{city_slug}"
         
-        # Format blocks by country with weather emoji
+        # Format blocks by country with weather emoji per city
         for country, data in by_country.items():
-            emoji = data["emoji"]
             cities = data["cities"]
             
-            # Country name with current weather emoji
-            message += f"{emoji} {country}\n"
+            # Country name (no emoji here, each city has its own)
+            message += f"📍 {country}\n"
             
             for city_data in cities:
                 city = city_data["city"]
-                temp_day = city_data["temp_day"]
-                temp_night = city_data["temp_night"]
+                emoji = city_data.get("emoji", "☀️")
+                temp_current = city_data.get("temp_current", 0)
+                temp_max = city_data.get("temp_max", 0)
+                temp_min = city_data.get("temp_min", 0)
                 
-                # Day/Night format: most readable, "scans" best
-                message += f"{city}: {temp_day}/{temp_night}°C\n"
+                # Format: Emoji + City + Current temp with day/night range
+                # Example: "❄️ London: 6°C (↑8/↓3°C)"
+                message += f"{emoji} {city}: {temp_current}°C (↑{temp_max}/↓{temp_min}°C)\n"
             
             message += "\n"
         
