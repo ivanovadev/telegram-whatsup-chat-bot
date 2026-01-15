@@ -1,13 +1,16 @@
 """Cost control: limits, alerts, hard stop."""
 import os
-from typing import Optional
-from storage.db import Database
+from typing import Optional, Any
 
 
 class BudgetGuard:
-    """Class for controlling LLM costs."""
+    """Class for controlling LLM costs.
     
-    def __init__(self, db: Database):
+    Note: Database type is passed in from service-specific storage.
+    Each service has its own storage/db.py module.
+    """
+    
+    def __init__(self, db: Any):
         self.db = db
         self.daily_budget_usd = float(os.getenv("DAILY_BUDGET_USD", "2.0"))
         self.alert_at_usd = float(os.getenv("ALERT_AT_USD", "1.5"))
