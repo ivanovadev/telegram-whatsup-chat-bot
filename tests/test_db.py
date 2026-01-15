@@ -5,8 +5,10 @@ import tempfile
 import unittest
 from pathlib import Path
 
-# Add parent directory to path for imports
-sys.path.insert(0, str(Path(__file__).parent.parent))
+# Add auto-reply-service to path for imports (using service-specific storage)
+project_root = Path(__file__).parent.parent
+auto_reply_service = project_root / "auto-reply-service"
+sys.path.insert(0, str(auto_reply_service))
 
 try:
     from storage.db import Database, CardStatus
