@@ -71,9 +71,9 @@ if [ -f "$SCRIPT_DIR/test_db.py" ]; then
         "python3 '$SCRIPT_DIR/test_db.py' -v"
 fi
 
-# 5. README Check, Auto-Fix, and Structure Validation
-run_test "README Validation & Structure Check (check_readme.py)" \
-    "python3 '$SCRIPT_DIR/check_readme.py' --fix --check-structure"
+# 5. README Check, Auto-Fix, Structure Validation, Structure Update, and Commands Update
+run_test "README Validation, Structure & Commands Update (check_readme.py)" \
+    "python3 '$SCRIPT_DIR/check_readme.py' --fix --check-structure --update-structure --update-commands"
 
 # 6. Environment Variables Check & Auto-Fix
 run_test "Environment Variables Check & Auto-Fix (check_env_vars.py)" \

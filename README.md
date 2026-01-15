@@ -11,32 +11,95 @@ All services can run independently in separate terminals.
 
 ```
 telegram-whatsup-chat-bot/
-├── auto-reply-service/      # Auto-reply microservice
-│   ├── app/
-│   ├── handlers/           # inbox, control
-│   ├── services/           # suggester, budget_guard
-│   ├── storage/            # database
-│   └── requirements.txt
-│
-├── group-posts-service/     # Group posts microservice (dev)
-│   ├── app/
-│   ├── content/             # Content generators (channel, person, tech, etc.)
-│   ├── services/            # channel_handler, image_service, news_service, etc.
-│   ├── storage/             # database
-│   └── requirements.txt
-│
-├── channel-posts-service/   # Channel posts microservice (production)
-│   ├── app/
-│   ├── services/           # channel_handler, channel_content, image_service
-│   ├── storage/            # database
-│   └── requirements.txt
-│
-├── .env.example            # Root .env.example (deprecated, use service-specific)
-├── README.md
-└── MANUAL_CONTROL.md
-```
-
-## 🚀 Quick Start
+├── auto-reply-service/
+│   ├── app/      # Entry point
+│   │   ├── __init__.py
+│   │   └── main.py
+│   ├── handlers/      # inbox, control
+│   │   ├── __init__.py
+│   │   ├── control.py
+│   │   └── inbox.py
+│   ├── services/      # suggester, budget_guard
+│   │   ├── __init__.py
+│   │   ├── budget_guard.py
+│   │   └── suggester.py
+│   ├── storage/      # database
+│   │   ├── __init__.py
+│   │   └── db.py
+│   ├── README.md
+│   ├── get_channel_id.py
+│   ├── requirements.txt
+│   └── run.sh
+├── channel-posts-service/
+│   ├── app/      # Entry point
+│   │   ├── __init__.py
+│   │   └── main.py
+│   ├── services/      # suggester, budget_guard
+│   │   ├── __init__.py
+│   │   ├── channel_content.py
+│   │   ├── channel_handler.py
+│   │   └── image_service.py
+│   ├── storage/      # database
+│   │   ├── __init__.py
+│   │   └── db.py
+│   ├── README.md
+│   ├── requirements.txt
+│   └── run.sh
+├── group-posts-service/
+│   ├── app/      # Entry point
+│   │   ├── __init__.py
+│   │   └── main.py
+│   ├── content/      # Content generators (channel, person, tech, etc.)
+│   │   ├── __init__.py
+│   │   ├── africa_content.py
+│   │   ├── base_content_generator.py
+│   │   ├── channel_content.py
+│   │   ├── london_content.py
+│   │   ├── person_content.py
+│   │   ├── quote_content.py
+│   │   ├── spider_content.py
+│   │   ├── tech_content.py
+│   │   ├── uk_content.py
+│   │   └── weather_content.py
+│   ├── services/      # suggester, budget_guard
+│   │   ├── __init__.py
+│   │   ├── channel_handler.py
+│   │   ├── image_service.py
+│   │   ├── job_content.py
+│   │   ├── news_service.py
+│   │   ├── services_list.py
+│   │   └── ukraine_news_service.py
+│   ├── storage/      # database
+│   │   ├── __init__.py
+│   │   └── db.py
+│   ├── tests/      # Test files
+│   │   ├── README.md
+│   │   ├── test_content_validation.py
+│   │   ├── test_services.py
+│   │   └── test_services.sh
+│   ├── README.md
+│   ├── check_weather_api_limit.py
+│   ├── requirements.txt
+│   ├── run.sh
+│   └── test_weather_api.py
+├── shared_services/
+│   ├── __init__.py
+│   ├── budget_guard.py
+│   ├── channel_content.py
+│   ├── image_service.py
+│   └── suggester.py
+├── tests/
+│   ├── __init__.py
+│   ├── check_env_vars.py
+│   ├── check_readme.py
+│   ├── check_security.py
+│   ├── count_lines.py
+│   ├── generate_structure.py
+│   ├── run_all.sh
+│   ├── test_code_quality.py
+│   └── test_db.py
+└── README.md
+```🚀 Quick Start
 
 ### Setup
 
@@ -382,17 +445,19 @@ This is expected behavior in Saved Messages. The bot processes commands correctl
    - Is `GROUP_ID` or `GROUP_USERNAME` set correctly?
 
 **Available commands:**
-- `travel` / `travel morning` - Generate travel posts
-- `news` - Generate news summary
-- `job` - Generate job vacancies
-- `person` - Generate famous person post
-- `tech` - Generate tech device post
-- `ukraine` - Generate Ukraine news
-- `spider` - Generate spider post
-- `london` - Generate London post
-- `uk` - Generate UK post
-- `phrase` - Generate phrase of the day
+- `status` - Check budget and service status
 - `africa` - Generate Africa exploration post
+- `canary` - Generate Canary Wharf post
+- `job` - Generate job vacancies
+- `news` - Generate news summary
+- `person` - Generate famous person post
+- `quote` - Generate quote of the day
+- `spider` - Generate spider post
+- `tech` - Generate tech device post
+- `travel` / `travel morning` - Generate travel posts
+- `uk` - Generate UK post
+- `ukraine` - Generate Ukraine news
+- `weather` - Generate weather forecastst
 
 See [MANUAL_CONTROL.md](MANUAL_CONTROL.md) for full command documentation.
 

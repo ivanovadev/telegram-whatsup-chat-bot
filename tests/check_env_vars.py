@@ -70,15 +70,23 @@ def parse_env_file(file_path: Path, preserve_comments: bool = False) -> Tuple[Di
 
 
 def find_env_example_files(project_root: Path) -> List[Path]:
-    """Find all .env.example files in the project."""
+    """Find all .env.example files in the project.
+    
+    Skips deprecated root-level .env.example file.
+    Only includes service-specific .env.example files.
+    """
     env_examples = []
     
     for root, dirs, files in os.walk(project_root):
         # Skip venv, __pycache__, and other common ignore directories
-        dirs[:] = [d for d in dirs if d not in ['venv', '__pycache__', '.git', 'node_modules', '.venv']]
+        dirs[:] = [d for d in dirs if d not in ['venv', '__pycache__', '.git', 'node_modules', '.venv', 'tests']]
         
         if '.env.example' in files:
-            env_examples.append(Path(root) / '.env.example')
+            env_path = Path(root) / '.env.example'
+            # Skip deprecated root-level .env.example
+            if env_path.parent == project_root:
+                continue
+            env_examples.append(env_path)
     
     return sorted(env_examples)
 
