@@ -1,150 +1,255 @@
-"""Generate 3 response options (LLM or templates)."""
+# suggester.py
 import os
 import random
+import re
 from typing import List, Optional
-from shared_services.budget_guard import BudgetGuard
+from services.budget_guard import BudgetGuard
 
 
 class Suggester:
     """Class for generating response options."""
-    
-    # Generic response templates (if LLM is disabled) - for general contacts
-    GENERIC_TEMPLATES = [
-        [
-            "I can, but a bit later. What time works for you?",
-            "I'm busy today, but I can do it tomorrow or on weekends. What's better for you?",
-            "I'm busy right now. If urgent, write 'urgent' and what you need."
+
+    # --- NEW: language-aware templates ---
+    GENERIC_TEMPLATES = {
+        "en": [
+            [
+                "I can, just a bit later. What time works for you?",
+                "I’m tied up right now, but I can do it later today or tomorrow. What’s better?",
+                "I’m in the middle of something. If it’s urgent, tell me what you need and I’ll prioritize it."
+            ],
+            [
+                "Thanks, I saw it. I’ll check and get back to you soon.",
+                "Got it. I’ll reply properly a bit later.",
+                "Not ignoring you, just busy. I’ll come back to this shortly."
+            ],
+            [
+                "Sure. Can you share the details so I do it right away when I’m free?",
+                "Yes, happy to help. What’s the key info I should know?",
+                "Ok. When do you want to discuss it?"
+            ]
         ],
-        [
-            "Thanks for the message! I'll check and reply soon.",
-            "Got it, I'll think about it and write back later.",
-            "Can't reply in detail right now, but I'll write soon."
+        "uk": [
+            [
+                "Можу, але трохи пізніше. На котру тобі зручно?",
+                "Зараз зайнята, але зроблю сьогодні ввечері або завтра. Як краще?",
+                "Я зараз у процесі. Якщо терміново, напиши коротко що потрібно і я пріоритезую."
+            ],
+            [
+                "Бачу повідомлення. Перевірю і відповім трохи пізніше.",
+                "Прийняла. Напишу нормально трохи згодом.",
+                "Не ігнорю, просто зайнята. Повернусь до цього скоро."
+            ],
+            [
+                "Так. Скинь деталі, щоб я зробила правильно, як звільнюсь.",
+                "Так, допоможу. Що саме важливо врахувати?",
+                "Ок. Коли тобі зручно це обговорити?"
+            ]
         ],
-        [
-            "Sure! When is a good time to discuss details?",
-            "Yes, I can help. Please provide more information.",
-            "Of course, let's discuss. What time works for you?"
-        ]
-    ]
-    
-    # Wife-to-husband templates (for eugen_parasochka_pl)
-    WIFE_TEMPLATES = [
-        [
-            "Of course, my love! ❤️ I'll do it as soon as I can. What time would be best for you?",
-            "Sure, darling! 😊 I'm a bit busy now, but I'll handle it soon. Love you!",
-            "Yes, sweetheart! Just give me a little time, okay? 💕"
+    }
+
+    WIFE_TEMPLATES = {
+        "en": [
+            [
+                "Yep, love. I'll handle it a bit later. Can you send the details?",
+                "Got it. I'm busy for the next hour, then I'll do it.",
+                "Okay. I'll sort it out today and update you."
+            ],
+            [
+                "I saw it. I'll reply properly in a bit 😊",
+                "Noted. I'll check and come back to you soon.",
+                "I'm on it. Give me a moment and I'll respond."
+            ],
+            [
+                "Sure. Do you want me to do it now, or is later fine?",
+                "Ok. Quick question: what's the priority here?",
+                "Alright. Tell me what outcome you want and I'll make it happen."
+            ]
         ],
-        [
-            "Got your message, honey! 💖 I'll take care of it and let you know.",
-            "Saw this, my dear! I'll get back to you shortly. Miss you! 😘",
-            "Thanks for writing, love! I'll think about it and reply soon. ❤️"
+        "uk": [
+            [
+                "Так, коханий. Зроблю трохи пізніше. Скинь, будь ласка, деталі.",
+                "Бачу. Я зайнята найближчу годину, потім зроблю.",
+                "Ок. Сьогодні закрию це і напишу тобі."
+            ],
+            [
+                "Прийняла. Відповім нормально трохи згодом 😊",
+                "Бачу. Перевірю і повернусь до тебе скоро.",
+                "Я візьму це на себе. Дай мені хвилинку."
+            ],
+            [
+                "Ок. Тобі треба це прямо зараз чи можна пізніше?",
+                "Ок, уточню: що тут найтерміновіше?",
+                "Добре. Скажи, який результат ти хочеш, і я зроблю."
+            ]
         ],
-        [
-            "Absolutely, my love! 😊 When do you want to discuss it?",
-            "Of course I'll help you, darling! 💕 Just tell me what you need.",
-            "Sure thing, sweetheart! Let's talk about it. Love you! ❤️"
-        ]
-    ]
-    
+    }
+
+    FRIENDS_TEMPLATES = {
+        "en": [
+            [
+                "Sure! I'm a bit tied up now, but I'll do it later today. Sound good?",
+                "Yeah, I can handle that. Just busy for the next hour or so.",
+                "Absolutely. Let me finish what I'm doing and I'll get to it."
+            ],
+            [
+                "Got it! I'll check and get back to you soon.",
+                "Thanks for letting me know. I'll take a look shortly.",
+                "Saw your message. I'll reply properly in a bit."
+            ],
+            [
+                "Of course! When do you need this by?",
+                "Happy to help. Just give me the key details so I can do it right.",
+                "Sure thing. What's the most important part here?"
+            ]
+        ],
+        "uk": [
+            [
+                "Так, звісно! Я зараз трохи зайнята, але зроблю сьогодні. Окей?",
+                "Так, зроблю. Просто зайнята найближчу годину.",
+                "Авжеж. Дай мені закінчити це і я візьмусь за твоє."
+            ],
+            [
+                "Бачу! Перевірю і напишу скоро.",
+                "Дякую, що написала. Подивлюсь трохи згодом.",
+                "Бачила повідомлення. Відповім нормально трохи пізніше."
+            ],
+            [
+                "Звісно! На коли тобі це потрібно?",
+                "З радістю допоможу. Тільки скинь основні деталі, щоб я зробила правильно.",
+                "Так, без проблем. Що тут найважливіше?"
+            ]
+        ],
+    }
+
     def __init__(self, budget_guard: BudgetGuard):
         self.budget_guard = budget_guard
         self.llm_enabled = os.getenv("LLM_ENABLED", "off").lower() == "on"
         self.openai_api_key = os.getenv("OPENAI_API_KEY", "")
-        self.openai_model = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
+        self.openai_model = os.getenv("OPENAI_MODEL", "gpt-5.2")
         self.max_output_tokens = int(os.getenv("MAX_OUTPUT_TOKENS", "200"))
-    
+
+    # --- NEW: simple language detection ---
+    def _detect_lang(self, text: str, context_messages: Optional[List[str]] = None) -> str:
+        sample = text or ""
+        if not sample and context_messages:
+            sample = context_messages[-1] or ""
+        # Any Cyrillic -> treat as Ukrainian mode (you only need uk/en)
+        return "uk" if re.search(r"[А-Яа-яІіЇїЄєҐґ]", sample) else "en"
+
     def generate_options(
         self,
         incoming_text: str,
         context_messages: Optional[List[str]] = None,
-        sender_username: Optional[str] = None
+        sender_username: Optional[str] = None,
+        is_husband: bool = False,
+        is_friend: bool = False
     ) -> List[str]:
-        """
-        Generate 3 response options.
-        
-        Args:
-            incoming_text: Incoming message text
-            context_messages: Context of previous messages (optional)
-            sender_username: Username of the sender (to determine tone/style)
-        
-        Returns:
-            List of 3 response options
-        """
         can_use, reason = self.budget_guard.can_use_llm()
-        
+
         if can_use and self.llm_enabled and self.openai_api_key:
-            return self._generate_with_llm(incoming_text, context_messages, sender_username)
+            return self._generate_with_llm(incoming_text, context_messages, sender_username, is_husband, is_friend)
         else:
-            return self._generate_with_templates(incoming_text, sender_username)
-    
-    def _generate_with_templates(self, incoming_text: str, sender_username: Optional[str] = None) -> List[str]:
-        """Generate responses from templates."""
-        # Check if sender is husband (eugen_parasochka_pl)
-        is_husband = sender_username and sender_username.lower() == "eugen_parasochka_pl"
+            return self._generate_with_templates(incoming_text, context_messages, sender_username, is_husband, is_friend)
+
+    def _generate_with_templates(
+        self,
+        incoming_text: str,
+        context_messages: Optional[List[str]] = None,
+        sender_username: Optional[str] = None,
+        is_husband: bool = False,
+        is_friend: bool = False
+    ) -> List[str]:
+        lang = self._detect_lang(incoming_text, context_messages)
+
+        # Choose templates based on user type
+        if is_husband:
+            templates = self.WIFE_TEMPLATES[lang]
+        elif is_friend:
+            templates = self.FRIENDS_TEMPLATES[lang]
+        else:
+            templates = self.GENERIC_TEMPLATES[lang]
         
-        # Select appropriate templates
-        templates = self.WIFE_TEMPLATES if is_husband else self.GENERIC_TEMPLATES
-        
-        # Simple random template selection
         return random.choice(templates).copy()
-    
+
     def _generate_with_llm(
         self,
         incoming_text: str,
         context_messages: Optional[List[str]] = None,
-        sender_username: Optional[str] = None
+        sender_username: Optional[str] = None,
+        is_husband: bool = False,
+        is_friend: bool = False
     ) -> List[str]:
-        """Generate responses via OpenAI API."""
         try:
             from openai import OpenAI
-            
             client = OpenAI(api_key=self.openai_api_key)
-            
-            # Check if sender is husband (eugen_parasochka_pl)
-            is_husband = sender_username and sender_username.lower() == "eugen_parasochka_pl"
-            
-            # Build prompt based on recipient
+
+            lang = self._detect_lang(incoming_text, context_messages)
+
             context = ""
             if context_messages:
-                context = "\n".join([
-                    f"Previous messages:\n" + "\n".join(context_messages[-5:])
-                ])
-            
-            if is_husband:
-                # Wife responding to husband - loving, warm tone
-                system_prompt = "You are a loving wife responding to her husband. Your tone is warm, affectionate, and supportive."
-                prompt = f"""You are helping a wife reply to messages from her husband (Eugen) in a loving and caring style.
+                context = "Previous messages:\n" + "\n".join(context_messages[-5:])
 
+            if is_husband:
+                system_prompt = (
+                    "You are Olha replying to her husband Eugen. "
+                    "Sound natural and human, not scripted. "
+                    "Keep the same language as the incoming message (Ukrainian or English). "
+                    "No long dashes."
+                )
+                prompt = f"""
 Rules:
-- Be warm, affectionate, and loving
-- Use terms of endearment (darling, honey, sweetheart, my love)
-- Add heart emojis occasionally (❤️, 💕, 😘, 😊)
-- Always be supportive and understanding
-- Show care and concern for his needs
-- Keep responses sweet but natural (2-3 sentences max)
-- Never be cold or distant
+- Reply in {"Ukrainian" if lang == "uk" else "English"} only.
+- Keep it short: 1-2 sentences.
+- Endearments are optional (max 1). Emojis are optional (max 1).
+- If the message asks something, answer it. If not, suggest next step or timing.
+- Avoid over-the-top compliments or dramatic tone.
 
 {context}
 
 Incoming message from husband: "{incoming_text}"
 
-Create 3 loving response options from wife to husband. Each option on a separate line, without numbering."""
-            else:
-                # Generic friendly style for other contacts
-                system_prompt = "You help form friendly replies to messages."
-                prompt = f"""You help reply to Telegram messages in a friendly but not categorical style.
-
+Create 3 natural reply options. Each option on a separate line, without numbering.
+""".strip()
+            elif is_friend:
+                system_prompt = (
+                    "You are Olha replying to a close friend. "
+                    "Sound warm, natural, and friendly, but professional. "
+                    "Keep the same language as the incoming message (Ukrainian or English). "
+                    "No long dashes."
+                )
+                prompt = f"""
 Rules:
-- Never say a categorical "no"
-- Always offer alternatives
-- Be friendly and open
-- Responses should be short (2-3 sentences max)
+- Reply in {"Ukrainian" if lang == "uk" else "English"} only.
+- Keep it short: 1-2 sentences.
+- Sound friendly and warm but not over-the-top.
+- If the message asks something, answer it. If not, suggest next step or timing.
+- Be helpful and enthusiastic.
+
+{context}
+
+Incoming message from friend: "{incoming_text}"
+
+Create 3 natural reply options. Each option on a separate line, without numbering.
+""".strip()
+            else:
+                system_prompt = (
+                    "You help craft friendly, non-categorical replies. "
+                    "Keep the same language as the incoming message (Ukrainian or English). "
+                    "No long dashes."
+                )
+                prompt = f"""
+Rules:
+- Reply in {"Ukrainian" if lang == "uk" else "English"} only.
+- Never give a hard 'no'. Offer an alternative or timing.
+- Keep it short: 1-2 sentences.
+- Sound natural and specific.
 
 {context}
 
 Incoming message: "{incoming_text}"
 
-Create 3 response options in this style. Each option on a separate line, without numbering."""
+Create 3 reply options. Each option on a separate line, without numbering.
+""".strip()
 
             response = client.chat.completions.create(
                 model=self.openai_model,
@@ -152,33 +257,42 @@ Create 3 response options in this style. Each option on a separate line, without
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": prompt}
                 ],
-                # Some newer models only support default temperature (1),
-                # so we rely on the server default and only control max tokens.
                 max_completion_tokens=self.max_output_tokens
             )
-            
-            # Parse response
+
             content = response.choices[0].message.content.strip()
-            options = [line.strip() for line in content.split("\n") if line.strip()]
             
-            # Record usage
+            # Record LLM usage
             tokens_used = response.usage.total_tokens
-            # Approximate cost (for gpt-4o-mini)
-            cost_per_1k_tokens = 0.15 / 1000  # $0.15 per 1M tokens input, $0.60 per 1M output
-            estimated_cost = (tokens_used / 1000) * cost_per_1k_tokens
-            
+            # Approximate cost for gpt-5.2 (using similar pricing to gpt-4o-mini: $0.15 per 1M input, $0.60 per 1M output)
+            # Average estimate: ~$0.30 per 1M tokens
+            cost_per_1k = 0.30 / 1000  # $0.0003 per 1k tokens
+            estimated_cost = (tokens_used / 1000) * cost_per_1k
             self.budget_guard.record_llm_call(tokens_used, estimated_cost)
-            
-            # If we got less than 3 options, fill with templates
-            is_husband = sender_username and sender_username.lower() == "eugen_parasochka_pl"
-            templates = self.WIFE_TEMPLATES if is_husband else self.GENERIC_TEMPLATES
+
+            # Slightly safer parsing: remove bullets/numbering if model adds them
+            options = []
+            for line in content.split("\n"):
+                line = line.strip()
+                if not line:
+                    continue
+                line = re.sub(r"^(\-|\*|\d+[\.\)]|\•)\s*", "", line).strip()
+                if line:
+                    options.append(line)
+
+            # Fallback fill if needed
+            if is_husband:
+                templates = self.WIFE_TEMPLATES[lang]
+            elif is_friend:
+                templates = self.FRIENDS_TEMPLATES[lang]
+            else:
+                templates = self.GENERIC_TEMPLATES[lang]
             
             while len(options) < 3:
-                options.append(random.choice(templates[0]))
-            
+                options.append(random.choice(random.choice(templates)))
+
             return options[:3]
-            
+
         except Exception as e:
-            # If LLM error, return templates
             print(f"LLM error: {e}")
-            return self._generate_with_templates(incoming_text, sender_username)
+            return self._generate_with_templates(incoming_text, context_messages, sender_username, is_husband, is_friend)

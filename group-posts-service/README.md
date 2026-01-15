@@ -48,6 +48,7 @@ See [INATURALIST_INTEGRATION.md](content/INATURALIST_INTEGRATION.md) for technic
 ### Manual Setup
 
 ```bash
+
 # Create virtual environment (first time)
 python3 -m venv venv
 source venv/bin/activate  # On Windows: venv\Scripts\activate
@@ -63,6 +64,7 @@ Create `.env` file in this directory:
 
 ```bash
 cp .env.example .env
+
 # Edit .env with your credentials
 ```
 
@@ -81,6 +83,7 @@ See `.env.example` for complete list.
 The service includes comprehensive test scripts to verify all functionality:
 
 ```bash
+
 # Navigate to tests directory
 cd tests/
 

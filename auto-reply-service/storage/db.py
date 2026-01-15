@@ -182,6 +182,17 @@ class Database:
             result.append(card)
         return result
     
+    def get_total_cards_count(self) -> int:
+        """Get total number of cards created (all time)."""
+        conn = self._get_connection()
+        cursor = conn.cursor()
+        
+        cursor.execute("SELECT COUNT(*) FROM cards")
+        count = cursor.fetchone()[0]
+        conn.close()
+        
+        return count
+    
     # ========== Whitelist ==========
     
     def add_to_whitelist(self, user_id: int, username: Optional[str] = None) -> bool:

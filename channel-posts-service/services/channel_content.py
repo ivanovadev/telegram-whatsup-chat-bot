@@ -47,7 +47,7 @@ class ChannelContentGenerator:
         """Initialize content generator."""
         self.budget_guard = budget_guard
         self.openai_api_key = os.getenv("OPENAI_API_KEY", "")
-        self.openai_model = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
+        self.openai_model = os.getenv("OPENAI_MODEL", "gpt-5.2")
         self.llm_enabled = os.getenv("LLM_ENABLED", "off").lower() == "on"
         
         if self.llm_enabled and self.openai_api_key:

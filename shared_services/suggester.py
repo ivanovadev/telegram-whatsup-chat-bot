@@ -50,7 +50,7 @@ class Suggester:
         self.budget_guard = budget_guard
         self.llm_enabled = os.getenv("LLM_ENABLED", "off").lower() == "on"
         self.openai_api_key = os.getenv("OPENAI_API_KEY", "")
-        self.openai_model = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
+        self.openai_model = os.getenv("OPENAI_MODEL", "gpt-5.2")
         self.max_output_tokens = int(os.getenv("MAX_OUTPUT_TOKENS", "200"))
     
     def generate_options(
@@ -163,7 +163,7 @@ Create 3 response options in this style. Each option on a separate line, without
             
             # Record usage
             tokens_used = response.usage.total_tokens
-            # Approximate cost (for gpt-4o-mini)
+            # Approximate cost (for gpt-5.2)
             cost_per_1k_tokens = 0.15 / 1000  # $0.15 per 1M tokens input, $0.60 per 1M output
             estimated_cost = (tokens_used / 1000) * cost_per_1k_tokens
             

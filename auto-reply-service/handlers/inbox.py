@@ -6,8 +6,8 @@ from typing import Optional
 from telethon import TelegramClient, events
 from telethon.tl.types import User, PeerUser
 from storage.db import Database
-from shared_services.suggester import Suggester
-from shared_services.budget_guard import BudgetGuard
+from services.suggester import Suggester
+from services.budget_guard import BudgetGuard
 
 
 class InboxHandler:
@@ -27,15 +27,36 @@ class InboxHandler:
         self.busy_mode = os.getenv("BUSY_MODE", "on").lower() == "on"
         self.whitelist_enabled = os.getenv("WHITELIST_ENABLED", "on").lower() == "on"
         self.cooldown_sec = int(os.getenv("COOLDOWN_SEC", "300"))
-        self.control_chat_id = os.getenv("CONTROL_CHAT_ID", "me")
+        
+        # Parse control chat ID (can be "me" or numeric ID)
+        control_id = os.getenv("CONTROL_CHAT_ID", "me")
+        if control_id == "me":
+            self.control_chat_id = "me"
+        else:
+            try:
+                self.control_chat_id = int(control_id)
+            except ValueError:
+                self.control_chat_id = control_id
+        
         self.context_messages = int(os.getenv("CONTEXT_MESSAGES", "10"))
-        # Optional: usernames whitelist from env, e.g. "user1,user2"
-        env_whitelist = os.getenv("WHITELIST_USERNAMES", "")
-        self.env_whitelist_usernames = {
+        
+        # Husband username (single user)
+        husband = os.getenv("HUSBAND_USERNAME", "").strip().lstrip("@").lower()
+        self.husband_username = husband if husband else None
+        
+        # Friends usernames (comma-separated list)
+        friends = os.getenv("FRIENDS_USERNAMES", "")
+        self.friends_usernames = {
             u.lstrip("@").lower()
-            for u in [item.strip() for item in env_whitelist.split(",")]
+            for u in [item.strip() for item in friends.split(",")]
             if u
         }
+        
+        # All allowed usernames (husband + friends)
+        self.env_whitelist_usernames = set()
+        if self.husband_username:
+            self.env_whitelist_usernames.add(self.husband_username)
+        self.env_whitelist_usernames.update(self.friends_usernames)
     
     def register(self):
         """Register event handler."""
@@ -122,8 +143,19 @@ class InboxHandler:
         # Get context (recent messages)
         context = await self._get_context(user_id)
         
-        # Generate 3 response options (pass username to determine tone/style)
-        options = self.suggester.generate_options(text, context, sender_username=username)
+        # Determine user type
+        username_lower = username.lower() if username else None
+        is_husband = username_lower == self.husband_username
+        is_friend = username_lower in self.friends_usernames
+        
+        # Generate 3 response options (pass username and user type)
+        options = self.suggester.generate_options(
+            text, 
+            context, 
+            sender_username=username,
+            is_husband=is_husband,
+            is_friend=is_friend
+        )
         
         # Save card to database
         self.db.create_card(
@@ -146,11 +178,32 @@ class InboxHandler:
             card_id, user_id, username, text, options
         )
         
+        # Create reply keyboard buttons (visible at bottom of screen)
+        from telethon.tl.custom import Button
+        
+        # Create simple text buttons that will be visible as keyboard
+        buttons = [
+            [Button.text(f"✅ Send 1"), Button.text(f"✅ Send 2"), Button.text(f"✅ Send 3")],
+            [Button.text("🔄 Regen"), Button.text("⏭️ Skip"), Button.text("🚫 Ignore")]
+        ]
+        
         # Send to control chat
         try:
-            await self.client.send_message(self.control_chat_id, card_message)
+            print(f"[INBOX] Sending card with {len(buttons)} button rows")
+            await self.client.send_message(
+                self.control_chat_id, 
+                card_message,
+                buttons=buttons
+            )
+            print(f"[INBOX] Card sent successfully with buttons")
         except Exception as e:
-            print(f"Error sending card: {e}")
+            print(f"[INBOX] Error sending card with buttons: {e}")
+            # Try sending without buttons as fallback
+            try:
+                await self.client.send_message(self.control_chat_id, card_message)
+                print(f"[INBOX] Card sent without buttons (fallback)")
+            except Exception as e2:
+                print(f"[INBOX] Error sending card (fallback): {e2}")
     
     async def _get_context(self, user_id: int) -> list[str]:
         """Get context of recent messages with user."""
@@ -174,16 +227,16 @@ class InboxHandler:
         """Format card message for control chat."""
         username_str = f"@{username}" if username else f"user_{user_id}"
         
-        message = f"""CARD {card_id}
-From: {username_str} (peer_id={user_id})
-Incoming: "{text}"
+        message = f"""📬 CARD {card_id}
+👤 From: {username_str} (ID: {user_id})
+💬 Incoming: "{text}"
 
-1) {options[0]}
-2) {options[1]}
-3) {options[2]}
+📝 Reply options:
+1️⃣ {options[0]}
+2️⃣ {options[1]}
+3️⃣ {options[2]}
 
-Reply with: 1 / 2 / 3
-Other: 0 (decline), regen, custom: <text>"""
+👇 Click a button below to reply"""
         
         return message
     

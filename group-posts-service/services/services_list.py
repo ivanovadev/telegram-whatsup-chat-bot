@@ -45,10 +45,10 @@ SERVICES = [
         "name": "spider_content",
         "file": "content/spider_content.py",
         "class": "SpiderContentGenerator",
-        "description": "Generates spider information posts with photos, location, size, color, dangerous rate",
+        "description": "Generates educational spider posts with cute/small spiders only (arachnophobia-friendly)",
         "schedule": "Configurable via SPIDER_POST_TIME",
         "command": "spider",
-        "features": ["dangerous_rate (0-10)", "location", "size", "color", "hunter", "speed", "lifespan"]
+        "features": ["Only tiny/cute spiders", "Educational content", "Helpful facts", "Non-scary photos"]
     },
     {
         "name": "quote_content",
