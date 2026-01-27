@@ -97,8 +97,8 @@ class SecurityChecker:
         is_whitelisted = self.is_whitelisted(filepath)
         
         for line_num, line in enumerate(lines, 1):
-            # Check for Ukrainian text (skip whitelisted files)
-            if not is_whitelisted and self.has_ukrainian(line):
+            # Check for Ukrainian text (always, even for whitelisted files)
+            if self.has_ukrainian(line):
                 if str(rel_path) not in self.ukrainian_files:
                     self.ukrainian_files[str(rel_path)] = []
                 self.ukrainian_files[str(rel_path)].append((line_num, line.strip()))
@@ -147,6 +147,7 @@ class SecurityChecker:
     def print_report(self) -> int:
         """Print scan report and return exit code."""
         total_issues = 0
+        docs_have_ukrainian = False
         
         # Report Ukrainian language findings
         if self.ukrainian_files:
@@ -158,6 +159,11 @@ class SecurityChecker:
                     print(f"   Line {line_num}: {text[:80]}")
                 if len(occurrences) > 3:
                     print(f"   ... and {len(occurrences) - 3} more")
+
+                # If Ukrainian appears in documentation, treat as an error
+                if filepath.lower().endswith(".md"):
+                    docs_have_ukrainian = True
+
             print(f"\n{'='*70}\n")
         else:
             print("✅ No Ukrainian language detected\n")
@@ -186,6 +192,12 @@ class SecurityChecker:
             return 1
         else:
             print("✅ No sensitive data detected\n")
+
+            # Fail if documentation contains Ukrainian text
+            if docs_have_ukrainian:
+                print("❌ Documentation must be English only: Ukrainian text found in .md files.\n")
+                return 1
+
             return 0
     
     def print_summary(self) -> None:

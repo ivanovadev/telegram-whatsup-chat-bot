@@ -18,7 +18,8 @@ class ControlHandler:
         suggester: Suggester,
         budget_guard: BudgetGuard,
         inbox_handler,
-        channel_handler=None
+        channel_handler=None,
+        neo4j=None
     ):
         self.client = client
         self.db = db
@@ -26,6 +27,7 @@ class ControlHandler:
         self.budget_guard = budget_guard
         self.inbox_handler = inbox_handler
         self.channel_handler = channel_handler
+        self.neo4j = neo4j
         
         # Parse control chat ID (can be "me" or numeric ID)
         control_id = os.getenv("CONTROL_CHAT_ID", "me")
@@ -93,6 +95,13 @@ class ControlHandler:
                     
                     if 0 <= option_idx < len(card['options']):
                         response_text = card['options'][option_idx]
+                        
+                        # Update Neo4j if available
+                        if hasattr(self, 'neo4j') and self.neo4j:
+                            try:
+                                self.neo4j.update_card_selection(card_id, option_idx + 1)
+                            except Exception as e:
+                                print(f"⚠️  Neo4j update error: {e}")
                         
                         # Send response
                         await self._send_response(card, response_text)
@@ -393,6 +402,14 @@ class ControlHandler:
             # Send response for option 1/2/3
             if 0 <= option_idx < len(card['options']):
                 response_text = card['options'][option_idx]
+                
+                # Update Neo4j if available
+                if self.neo4j:
+                    try:
+                        self.neo4j.update_card_selection(card['card_id'], option_idx + 1)
+                    except Exception as e:
+                        print(f"⚠️  Neo4j update error: {e}")
+                
                 await self._send_response(card, response_text)
                 self.db.update_card_status(card_id, CardStatus.SENT)
                 await event.reply(f"✅ Response {option_idx + 1} sent to {card.get('from_username', 'user')}")

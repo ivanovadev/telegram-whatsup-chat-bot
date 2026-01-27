@@ -1,0 +1,9 @@
+# Docker volumes data (якщо використовуєте локальні volumes)
+neo4j_data/
+neo4j_logs/
+neo4j_import/
+neo4j_plugins/
+
+# Temporary files
+*.dmg
+Docker.dmg

@@ -20,7 +20,7 @@ from services.job_content import JobContentGenerator
 from content.weather_content import WeatherContentGenerator
 from services.channel_handler import ChannelHandler
 
-# Import BudgetGuard from shared services
+# Import BudgetGuard and Neo4j from shared services
 import sys
 from pathlib import Path
 # Add project root to path to import shared_services
@@ -28,6 +28,7 @@ service_dir = Path(__file__).parent.parent  # group-posts-service/
 project_root = service_dir.parent  # telegram-whatsup-chat-bot/
 sys.path.insert(0, str(project_root))
 from shared_services.budget_guard import BudgetGuard
+from shared_services.neo4j_service import Neo4jService
 
 # Configure logging
 logging.basicConfig(
@@ -122,9 +123,16 @@ async def main():
     job_service = JobContentGenerator(budget_guard)
     weather_service = WeatherContentGenerator(budget_guard)
     
+    # Initialize Neo4j
+    neo4j = Neo4jService()
+    if neo4j.enabled:
+        print("✅ Neo4j graph database connected")
+    else:
+        print("ℹ️  Neo4j is disabled (set NEO4J_ENABLED=on to enable)")
+    
     # Create channel handler (works for groups too)
     channel_handler = ChannelHandler(
-        client, db, content_generator, image_service, news_service, person_service, tech_service, ukraine_news_service, spider_service, quote_service, africa_service, london_service, uk_service, job_service, weather_service
+        client, db, content_generator, image_service, news_service, person_service, tech_service, ukraine_news_service, spider_service, quote_service, africa_service, london_service, uk_service, job_service, weather_service, neo4j
     )
     
     # Start scheduler

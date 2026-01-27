@@ -3,6 +3,8 @@
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
+DOCKER_DIR="$PROJECT_ROOT/docker"
+ANSIBLE_DIR="$PROJECT_ROOT/ansible"
 
 # Colors
 RED='\033[0;31m'
@@ -16,6 +18,36 @@ NC='\033[0m' # No Color
 TOTAL_TESTS=0
 PASSED_TESTS=0
 FAILED_TESTS=0
+
+# Cleanup helper (docker & ansible artefacts)
+cleanup_docker_and_ansible() {
+    echo -e "${YELLOW}🔄 Cleaning Docker & Ansible artefacts...${NC}"
+
+    # Stop Neo4j stack if running (best-effort)
+    if command -v docker &> /dev/null; then
+        if [ -f "$DOCKER_DIR/docker-compose.neo4j.yml" ]; then
+            (
+                cd "$PROJECT_ROOT" && \
+                docker compose -f docker/docker-compose.neo4j.yml down >/dev/null 2>&1 || \
+                docker-compose -f docker/docker-compose.neo4j.yml down >/dev/null 2>&1 || true
+            )
+        fi
+
+        # Optionally prune stopped containers with this project name
+        docker ps -a --format '{{.Names}}' | grep -E '^telegram-bot-neo4j$' >/dev/null 2>&1 && \
+            docker rm -f telegram-bot-neo4j >/dev/null 2>&1 || true
+    fi
+
+    # Remove Ansible retry files in project tree
+    if [ -d "$ANSIBLE_DIR" ]; then
+        find "$ANSIBLE_DIR" -name "*.retry" -type f -delete 2>/dev/null || true
+    fi
+
+    # Remove local .ansible cache inside project if present
+    if [ -d "$PROJECT_ROOT/.ansible" ]; then
+        rm -rf "$PROJECT_ROOT/.ansible"
+    fi
+}
 
 echo -e "${CYAN}╔════════════════════════════════════════════════════════════╗${NC}"
 echo -e "${CYAN}║         Running All Tests & Quality Checks                ║${NC}"
@@ -78,6 +110,13 @@ run_test "README Validation, Structure & Commands Update (check_readme.py)" \
 # 6. Environment Variables Check & Auto-Fix
 run_test "Environment Variables Check & Auto-Fix (check_env_vars.py)" \
     "python3 '$SCRIPT_DIR/check_env_vars.py' '$PROJECT_ROOT'"
+
+# 7. Extra Markdown Files Check
+run_test "Extra Markdown Check (only README*.md allowed in code dirs)" \
+    "python3 '$SCRIPT_DIR/check_extra_markdown.py'"
+
+# Cleanup after all tests
+cleanup_docker_and_ansible
 
 # Summary
 echo ""

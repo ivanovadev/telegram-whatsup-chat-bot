@@ -87,10 +87,13 @@ telegram-whatsup-chat-bot/
 │   ├── budget_guard.py
 │   ├── channel_content.py
 │   ├── image_service.py
-│   └── suggester.py
+│   ├── neo4j_service.py
+│   ├── suggester.py
+│   └── topic_extractor.py
 ├── tests/
 │   ├── __init__.py
 │   ├── check_env_vars.py
+│   ├── check_extra_markdown.py
 │   ├── check_readme.py
 │   ├── check_security.py
 │   ├── count_lines.py
@@ -99,7 +102,7 @@ telegram-whatsup-chat-bot/
 │   ├── test_code_quality.py
 │   └── test_db.py
 └── README.md
-```🚀 Quick Start
+```
 
 ### Setup
 
@@ -457,9 +460,7 @@ This is expected behavior in Saved Messages. The bot processes commands correctl
 - `travel` / `travel morning` - Generate travel posts
 - `uk` - Generate UK post
 - `ukraine` - Generate Ukraine news
-- `weather` - Generate weather forecastst
-
-See [MANUAL_CONTROL.md](MANUAL_CONTROL.md) for full command documentation.
+- `weather` - Generate weather forecast
 
 ## 📝 License
 

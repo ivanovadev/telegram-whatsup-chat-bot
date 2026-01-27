@@ -21,6 +21,12 @@ data/
 *.db
 *.db-journal
 
+# Neo4j volumes (якщо використовуєте локальні volumes)
+neo4j_data/
+neo4j_logs/
+neo4j_import/
+neo4j_plugins/
+
 # IDE
 .vscode/
 .idea/

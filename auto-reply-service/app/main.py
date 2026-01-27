@@ -1,6 +1,7 @@
 """Main file for Auto-Reply Service."""
 import os
 import asyncio
+import sys
 from dotenv import load_dotenv
 from telethon import TelegramClient
 from storage.db import Database
@@ -8,6 +9,10 @@ from services.budget_guard import BudgetGuard
 from services.suggester import Suggester
 from handlers.inbox import InboxHandler
 from handlers.control import ControlHandler
+
+# Add shared_services to path
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'shared_services'))
+from neo4j_service import Neo4jService
 
 
 # Load environment variables from service directory
@@ -92,10 +97,17 @@ async def main():
     budget_guard = BudgetGuard(db)
     suggester = Suggester(budget_guard)
     
+    # Initialize Neo4j
+    neo4j = Neo4jService()
+    if neo4j.enabled:
+        print("✅ Neo4j graph database connected")
+    else:
+        print("ℹ️  Neo4j is disabled (set NEO4J_ENABLED=on to enable)")
+    
     # Create handlers
-    inbox_handler = InboxHandler(client, db, suggester, budget_guard)
+    inbox_handler = InboxHandler(client, db, suggester, budget_guard, neo4j)
     control_handler = ControlHandler(
-        client, db, suggester, budget_guard, inbox_handler, None
+        client, db, suggester, budget_guard, inbox_handler, None, neo4j
     )
     
     # Register handlers
