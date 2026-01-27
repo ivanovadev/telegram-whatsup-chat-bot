@@ -6,6 +6,7 @@ from telethon import TelegramClient
 from storage.db import Database
 from shared_services.channel_content import ChannelContentGenerator
 from shared_services.image_service import ImageService
+from shared_services.neo4j_service import Neo4jService
 from services.channel_handler import ChannelHandler
 
 # Load environment variables from service directory
@@ -88,9 +89,16 @@ async def main():
     content_generator = ChannelContentGenerator(budget_guard)
     image_service = ImageService()
     
+    # Initialize Neo4j
+    neo4j = Neo4jService()
+    if neo4j.enabled:
+        print("✅ Neo4j graph database connected")
+    else:
+        print("ℹ️  Neo4j is disabled (set NEO4J_ENABLED=on to enable)")
+    
     # Create channel handler
     channel_handler = ChannelHandler(
-        client, db, content_generator, image_service
+        client, db, content_generator, image_service, neo4j
     )
     
     # Start scheduler

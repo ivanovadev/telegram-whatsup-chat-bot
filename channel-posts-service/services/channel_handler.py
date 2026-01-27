@@ -22,12 +22,14 @@ class ChannelHandler:
         client: TelegramClient,
         db: Database,
         content_generator: ChannelContentGenerator,
-        image_service: ImageService
+        image_service: ImageService,
+        neo4j=None
     ):
         self.client = client
         self.db = db
         self.content_generator = content_generator
         self.image_service = image_service
+        self.neo4j = neo4j
         # Can be group username, group ID, or channel username
         self.target_username = os.getenv("CHANNEL_USERNAME", "")
         self.target_id = os.getenv("CHANNEL_ID", "")  # Alternative: group/channel ID
@@ -179,6 +181,24 @@ class ChannelHandler:
             topic = content.get("title", "unknown")
             self.db.record_channel_post("morning", topic, content)
             
+            # Update Neo4j graph
+            if self.neo4j:
+                try:
+                    countries = [c.get('name', '') for c in content.get('countries', [])]
+                    self.neo4j.record_post("morning", topic, countries, content)
+                    
+                    # Create/update countries and link to topic
+                    for i, country_data in enumerate(content.get('countries', []), 1):
+                        country_name = country_data.get('name', '')
+                        if country_name:
+                            self.neo4j.create_or_update_country(country_name, {
+                                'capital': country_data.get('capital', ''),
+                                'rank': i
+                            })
+                            self.neo4j.link_country_to_topic(country_name, topic, rank=i)
+                except Exception as e:
+                    logger.error(f"Neo4j error: {e}")
+            
             logger.info(f"Morning post sent: {topic}")
             
         except Exception as e:
@@ -218,6 +238,25 @@ class ChannelHandler:
             # Save to database
             travel_type = content.get("travel_type", "unknown")
             self.db.record_channel_post("evening", travel_type, content)
+            
+            # Update Neo4j graph
+            if self.neo4j:
+                try:
+                    countries = [c.get('name', '') for c in content.get('countries', [])]
+                    self.neo4j.record_post("evening", travel_type, countries, content)
+                    
+                    # Create/update countries and link to topic
+                    for i, country_data in enumerate(content.get('countries', []), 1):
+                        country_name = country_data.get('name', '')
+                        if country_name:
+                            self.neo4j.create_or_update_country(country_name, {
+                                'capital': country_data.get('capital', ''),
+                                'rank': i,
+                                'travel_type': travel_type
+                            })
+                            self.neo4j.link_country_to_topic(country_name, travel_type, rank=i)
+                except Exception as e:
+                    logger.error(f"Neo4j error: {e}")
             
             logger.info(f"Evening post sent: {travel_type}")
             

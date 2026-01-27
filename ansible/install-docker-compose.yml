@@ -1,0 +1,154 @@
+---
+- name: Install Docker Compose standalone
+  hosts: localhost
+  connection: local
+  become: no
+  vars:
+    docker_compose_version: "2.24.0"
+    install_path: "{{ ansible_env.HOME }}/.local/bin/docker-compose"
+    system_install_path: "/usr/local/bin/docker-compose"
+    
+  tasks:
+    - name: Determine system architecture for Docker Compose
+      set_fact:
+        compose_arch: "{{ 'aarch64' if (ansible_architecture == 'arm64' or ansible_architecture == 'aarch64') else ('x86_64' if ansible_architecture == 'x86_64' else 'amd64') }}"
+        compose_os: "{{ 'darwin' if ansible_system == 'Darwin' else ('linux' if ansible_system == 'Linux' else 'windows') }}"
+    
+    - name: Check if docker-compose already exists (user location)
+      stat:
+        path: "{{ install_path }}"
+      register: docker_compose_exists_user
+
+    - name: Check if docker-compose already exists (system location)
+      stat:
+        path: "{{ system_install_path }}"
+      register: docker_compose_exists_system
+      
+    - name: Set fact for docker-compose exists
+      set_fact:
+        docker_compose_exists: "{{ docker_compose_exists_user.stat.exists or docker_compose_exists_system.stat.exists }}"
+
+    - name: Check if docker compose (plugin) is available
+      command: docker compose version
+      register: docker_compose_plugin
+      changed_when: false
+      failed_when: false
+
+    - name: Display current Docker Compose status
+      debug:
+        msg: |
+          Docker Compose standalone exists: {{ docker_compose_exists }}
+          Docker Compose plugin available: {{ docker_compose_plugin.rc == 0 }}
+          {% if docker_compose_plugin.rc == 0 %}
+          Plugin version: {{ docker_compose_plugin.stdout }}
+          {% endif %}
+
+    - name: Display detected architecture
+      debug:
+        msg: "Detected: OS={{ compose_os }}, Arch={{ compose_arch }}"
+
+    - name: Create directory for local bin
+      file:
+        path: "{{ ansible_env.HOME }}/.local/bin"
+        state: directory
+        mode: '0755'
+      when: not docker_compose_exists and docker_compose_plugin.rc != 0
+
+    - name: Download Docker Compose standalone
+      get_url:
+        url: "https://github.com/docker/compose/releases/download/v{{ docker_compose_version }}/docker-compose-{{ compose_os }}-{{ compose_arch }}"
+        dest: "/tmp/docker-compose"
+        mode: '0755'
+      when: not docker_compose_exists and docker_compose_plugin.rc != 0
+      register: download_result
+
+    - name: Install Docker Compose to user directory (no sudo needed)
+      copy:
+        src: /tmp/docker-compose
+        dest: "{{ install_path }}"
+        mode: '0755'
+        remote_src: yes
+      when: not docker_compose_exists and docker_compose_plugin.rc != 0 and download_result is succeeded
+
+    - name: Try to install to system location (optional, requires sudo)
+      copy:
+        src: /tmp/docker-compose
+        dest: "{{ system_install_path }}"
+        mode: '0755'
+        remote_src: yes
+      when: not docker_compose_exists and docker_compose_plugin.rc != 0 and download_result is succeeded
+      become: yes
+      ignore_errors: yes
+      register: system_install_result
+
+    - name: Add ~/.local/bin to PATH in .zshrc (if not already there)
+      lineinfile:
+        path: "{{ ansible_env.HOME }}/.zshrc"
+        line: 'export PATH="$HOME/.local/bin:$PATH"'
+        regexp: '^export PATH=.*\.local/bin'
+        create: yes
+      when: not docker_compose_exists and docker_compose_plugin.rc != 0 and download_result is succeeded
+      ignore_errors: yes
+
+    - name: Add ~/.local/bin to PATH in .bashrc (if not already there)
+      lineinfile:
+        path: "{{ ansible_env.HOME }}/.bashrc"
+        line: 'export PATH="$HOME/.local/bin:$PATH"'
+        regexp: '^export PATH=.*\.local/bin'
+        create: yes
+      when: not docker_compose_exists and docker_compose_plugin.rc != 0 and download_result is succeeded
+      ignore_errors: yes
+
+    - name: Verify Docker Compose installation (user location)
+      command: "{{ install_path }} --version"
+      register: docker_compose_version_check_user
+      changed_when: false
+      failed_when: false
+      when: not docker_compose_exists and download_result is succeeded
+
+    - name: Verify Docker Compose installation (system location)
+      command: docker-compose --version
+      register: docker_compose_version_check_system
+      changed_when: false
+      failed_when: false
+
+    - name: Set final version check result
+      set_fact:
+        docker_compose_version_check: "{{ docker_compose_version_check_system if docker_compose_version_check_system.rc == 0 else docker_compose_version_check_user }}"
+
+    - name: Display installation result
+      debug:
+        msg: |
+          {% if docker_compose_version_check.rc == 0 %}
+          ✅ Docker Compose installed successfully!
+          Version: {{ docker_compose_version_check.stdout }}
+          
+          {% if system_install_result is defined and system_install_result.changed %}
+          Location: {{ system_install_path }} (system-wide)
+          {% else %}
+          Location: {{ install_path }} (user directory)
+          
+          💡 Note: Make sure ~/.local/bin is in your PATH.
+          If not, add to ~/.zshrc or ~/.bashrc:
+          export PATH="$HOME/.local/bin:$PATH"
+          
+          Or use full path: {{ install_path }}
+          {% endif %}
+          
+          You can now use:
+          - docker-compose (standalone)
+          - docker compose (plugin, if available)
+          {% elif docker_compose_plugin.rc == 0 %}
+          ✅ Docker Compose plugin is already available!
+          Use: docker compose (without dash)
+          {% else %}
+          ⚠️ Docker Compose installation may have failed.
+          
+          Installed to: {{ install_path }}
+          Try: {{ install_path }} --version
+          
+          Alternative installation methods:
+          1. Install via Homebrew: brew install docker-compose
+          2. Use Docker Desktop (includes docker compose plugin)
+          3. Manual download from: https://github.com/docker/compose/releases
+          {% endif %}

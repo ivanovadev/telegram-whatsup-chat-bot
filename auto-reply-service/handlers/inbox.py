@@ -1,5 +1,6 @@
 """Handle incoming private messages (DM)."""
 import os
+import sys
 import secrets
 from datetime import datetime, timedelta
 from typing import Optional
@@ -8,6 +9,11 @@ from telethon.tl.types import User, PeerUser
 from storage.db import Database
 from services.suggester import Suggester
 from services.budget_guard import BudgetGuard
+
+# Add shared_services to path
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'shared_services'))
+from neo4j_service import Neo4jService
+from topic_extractor import TopicExtractor
 
 
 class InboxHandler:
@@ -18,12 +24,15 @@ class InboxHandler:
         client: TelegramClient,
         db: Database,
         suggester: Suggester,
-        budget_guard: BudgetGuard
+        budget_guard: BudgetGuard,
+        neo4j: Optional[Neo4jService] = None
     ):
         self.client = client
         self.db = db
         self.suggester = suggester
         self.budget_guard = budget_guard
+        self.neo4j = neo4j
+        self.topic_extractor = TopicExtractor()
         self.busy_mode = os.getenv("BUSY_MODE", "on").lower() == "on"
         self.whitelist_enabled = os.getenv("WHITELIST_ENABLED", "on").lower() == "on"
         self.cooldown_sec = int(os.getenv("COOLDOWN_SEC", "300"))
@@ -148,6 +157,32 @@ class InboxHandler:
         is_husband = username_lower == self.husband_username
         is_friend = username_lower in self.friends_usernames
         
+        # Update Neo4j graph
+        if self.neo4j:
+            try:
+                # Create/update user
+                self.neo4j.create_or_update_user(
+                    user_id=user_id,
+                    username=username,
+                    is_husband=is_husband,
+                    is_friend=is_friend
+                )
+                
+                # Create message node
+                self.neo4j.create_message(
+                    message_id=event.message.id,
+                    user_id=user_id,
+                    text=text,
+                    timestamp=datetime.now()
+                )
+                
+                # Extract and link topics
+                topics = self.topic_extractor.extract_topics(text)
+                if topics:
+                    self.neo4j.extract_and_link_topics(event.message.id, topics)
+            except Exception as e:
+                print(f"⚠️  Neo4j error: {e}")
+        
         # Generate 3 response options (pass username and user type)
         options = self.suggester.generate_options(
             text, 
@@ -166,6 +201,19 @@ class InboxHandler:
             original_text=text,
             options=options
         )
+        
+        # Update Neo4j with card
+        if self.neo4j:
+            try:
+                self.neo4j.create_card(
+                    card_id=card_id,
+                    user_id=user_id,
+                    original_message_id=event.message.id,
+                    original_text=text,
+                    options=options
+                )
+            except Exception as e:
+                print(f"⚠️  Neo4j card error: {e}")
         
         # Update cooldown
         self.db.update_user_cooldown(user_id)
