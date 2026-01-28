@@ -3,20 +3,25 @@ version: '3.8'
 services:
   neo4j:
     image: neo4j:latest
-    container_name: telegram-bot-neo4j
+    # Versioned container name to avoid name conflicts between runs.
+    # Default version: 0.1 (can be overridden via NEO4J_VERSION env).
+    container_name: "telegram-bot-neo4j-${NEO4J_VERSION:-0.1}"
     ports:
-      - "7474:7474"  # HTTP
+      - "7474:7474"  # HTTP - Neo4j Browser
       - "7687:7687"  # Bolt
     environment:
+      # Authentication: username/password
       - NEO4J_AUTH=neo4j/password
+      # Enable APOC plugin
       - NEO4J_PLUGINS=["apoc"]
-      - NEO4J_dbms_memory_heap_initial__size=512m
-      - NEO4J_dbms_memory_heap_max__size=2G
-      - NEO4J_dbms_memory_pagecache_size=1G
     volumes:
+      # Persisted data
       - neo4j_data:/data
+      # Logs
       - neo4j_logs:/logs
+      # Import directory
       - neo4j_import:/var/lib/neo4j/import
+      # Plugins
       - neo4j_plugins:/plugins
     restart: unless-stopped
     healthcheck:
@@ -24,13 +29,19 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+      start_period: 30s
 
 volumes:
   neo4j_data:
     driver: local
+    name: telegram_bot_neo4j_data
   neo4j_logs:
     driver: local
+    name: telegram_bot_neo4j_logs
   neo4j_import:
     driver: local
+    name: telegram_bot_neo4j_import
   neo4j_plugins:
     driver: local
+    name: telegram_bot_neo4j_plugins
+

@@ -23,12 +23,13 @@ from services.channel_handler import ChannelHandler
 # Import BudgetGuard and Neo4j from shared services
 import sys
 from pathlib import Path
-# Add project root to path to import shared_services
+# Add project root to path to import shared_services and neo4j_app
 service_dir = Path(__file__).parent.parent  # group-posts-service/
 project_root = service_dir.parent  # telegram-whatsup-chat-bot/
 sys.path.insert(0, str(project_root))
 from shared_services.budget_guard import BudgetGuard
-from shared_services.neo4j_service import Neo4jService
+from neo4j_app.neo4j_service import Neo4jService
+from neo4j_app.user_relationships import seed_example_social_graph
 
 # Configure logging
 logging.basicConfig(
@@ -127,6 +128,13 @@ async def main():
     neo4j = Neo4jService()
     if neo4j.enabled:
         print("✅ Neo4j graph database connected")
+        # Always (re)seed demo social graph on service start.
+        # Uses MERGE, so it is safe to run every time and will restore
+        # missing nodes/relationships (e.g. if Iva was deleted manually).
+        print("🌱 Seeding example social graph into Neo4j...")
+        seeded = seed_example_social_graph(neo4j)
+        status = "done" if seeded else "skipped"
+        print(f"🌱 Seed status: {status}")
     else:
         print("ℹ️  Neo4j is disabled (set NEO4J_ENABLED=on to enable)")
     

@@ -3,8 +3,14 @@ import os
 import logging
 import random
 from typing import Dict, Optional, List
-from openai import OpenAI
 from datetime import datetime
+
+from openai import OpenAI
+
+try:
+    import google.generativeai as genai
+except ImportError:  # pragma: no cover - optional dependency
+    genai = None
 
 logger = logging.getLogger(__name__)
 
@@ -23,13 +29,35 @@ class AfricaContentGenerator:
         self.budget_guard = budget_guard
         self.openai_api_key = os.getenv("OPENAI_API_KEY", "")
         self.openai_model = os.getenv("OPENAI_MODEL", "gpt-5.2")
+        self.llm_provider = os.getenv("AFRICA_LLM_PROVIDER", "openai").lower()
         self.llm_enabled = os.getenv("LLM_ENABLED", "off").lower() == "on"
-        
-        if self.llm_enabled and self.openai_api_key:
-            self.client = OpenAI(api_key=self.openai_api_key)
-        else:
-            self.client = None
+
+        self.client = None
+
+        if not self.llm_enabled:
             logger.warning("LLM disabled for Africa content")
+            return
+
+        if self.llm_provider == "openai":
+            if self.openai_api_key:
+                self.client = OpenAI(api_key=self.openai_api_key)
+                logger.info("AfricaContentGenerator using OpenAI.")
+            else:
+                logger.warning("OPENAI_API_KEY not set; falling back to template Africa content.")
+        elif self.llm_provider == "gemini":
+            gemini_api_key = os.getenv("GEMINI_API_KEY", "")
+            gemini_model = os.getenv("GEMINI_MODEL", "gemini-2.0-flash")
+
+            if not genai:
+                logger.warning("google-generativeai not installed; cannot use Gemini for Africa content.")
+            elif not gemini_api_key:
+                logger.warning("GEMINI_API_KEY not set; cannot use Gemini for Africa content.")
+            else:
+                genai.configure(api_key=gemini_api_key)
+                self.client = genai.GenerativeModel(gemini_model)
+                logger.info(f"AfricaContentGenerator using Gemini model: {gemini_model}.")
+        else:
+            logger.warning(f"Unknown AFRICA_LLM_PROVIDER '{self.llm_provider}', falling back to template Africa content.")
     
     def generate_africa_post(self, used_countries: List[str] = None) -> Optional[Dict]:
         """Generate Africa exploration post."""
@@ -38,6 +66,13 @@ class AfricaContentGenerator:
         if self.client and self.llm_enabled:
             return self._generate_with_llm(used_countries)
         else:
+            if self.llm_enabled:
+                logger.warning(
+                    "AfricaContentGenerator falling back to template (provider=%s, client=%s). "
+                    "If provider=gemini, ensure google-generativeai is installed in this venv.",
+                    self.llm_provider,
+                    "set" if self.client else "missing",
+                )
             return self._generate_template(used_countries)
     
     def _generate_with_llm(self, used_countries: List[str]) -> Optional[Dict]:
@@ -97,19 +132,53 @@ IMPORTANT:
 
 Return ONLY valid JSON, no additional text."""
 
-            response = self.client.chat.completions.create(
-                model=self.openai_model,
-                messages=[
-                    {"role": "system", "content": "You are a travel writer specializing in Africa. Generate accurate information about African countries for exploration. Always return valid JSON only, no additional text."},
-                    {"role": "user", "content": prompt}
-                ],
-                max_completion_tokens=800,
-                response_format={"type": "json_object"}
-            )
-            
             import json
             import re
-            content = response.choices[0].message.content.strip()
+
+            if self.llm_provider == "gemini":
+                # Gemini call
+                logger.info("Calling Gemini for Africa content (country=%s)", country)
+                try:
+                    response = self.client.generate_content(
+                        [
+                            "You are a travel writer specializing in Africa. Generate accurate information about African countries for exploration. Always return valid JSON only, no additional text.",
+                            prompt,
+                        ]
+                    )
+                    # Safe access: .text can raise if response was blocked
+                    if getattr(response, "candidates", None) and response.candidates:
+                        part = response.candidates[0]
+                        if getattr(part, "content", None) and part.content and getattr(part.content, "parts", None) and part.content.parts:
+                            content = (part.content.parts[0].text or "").strip()
+                        else:
+                            content = ""
+                            logger.warning("Gemini Africa: no content parts (finish_reason=%s)", getattr(part, "finish_reason", None))
+                    else:
+                        content = (getattr(response, "text", None) or "").strip()
+                    if not content:
+                        logger.warning("Gemini Africa: empty response (candidates=%s)", getattr(response, "candidates", None))
+                except Exception as gemini_err:
+                    logger.error("Gemini Africa request failed: %s", gemini_err, exc_info=True)
+                    return self._generate_template(used_countries)
+                tokens_used = 0
+                cost_per_1k = 0.0
+            else:
+                # Default: OpenAI compatible
+                response = self.client.chat.completions.create(
+                    model=self.openai_model,
+                    messages=[
+                        {
+                            "role": "system",
+                            "content": "You are a travel writer specializing in Africa. Generate accurate information about African countries for exploration. Always return valid JSON only, no additional text.",
+                        },
+                        {"role": "user", "content": prompt},
+                    ],
+                    max_completion_tokens=800,
+                    response_format={"type": "json_object"},
+                )
+                content = response.choices[0].message.content.strip()
+                tokens_used = getattr(response.usage, "total_tokens", 0)
+                cost_per_1k = 0.15 / 1000
             
             # Try to extract JSON if wrapped in markdown code blocks
             json_match = re.search(r'```(?:json)?\s*(\{.*?\})\s*```', content, re.DOTALL)
@@ -139,9 +208,6 @@ Return ONLY valid JSON, no additional text."""
                     logger.error(f"Failed to fix JSON for Africa: {e2}")
                     return self._generate_template(used_countries)
             
-            # Record usage
-            tokens_used = response.usage.total_tokens
-            cost_per_1k = 0.15 / 1000
             estimated_cost = (tokens_used / 1000) * cost_per_1k
             self.budget_guard.record_llm_call(tokens_used, estimated_cost)
             

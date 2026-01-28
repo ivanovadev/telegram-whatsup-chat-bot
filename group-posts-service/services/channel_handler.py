@@ -127,6 +127,18 @@ class ChannelHandler:
             if target_entity:
                 target_name = getattr(target_entity, 'title', getattr(target_entity, 'username', 'Unknown'))
                 logger.info(f"✅ Target group/channel found: {target_name}")
+                # Diagnostic: log type and id so user can verify we target the right chat
+                entity_id = getattr(target_entity, 'id', None)
+                entity_type = type(target_entity).__name__
+                is_broadcast = getattr(target_entity, 'broadcast', False)
+                is_megagroup = getattr(target_entity, 'megagroup', False)
+                username_attr = getattr(target_entity, 'username', None) or "(no username)"
+                logger.info(
+                    f"📋 Resolved target: type={entity_type}, id={entity_id}, "
+                    f"broadcast={is_broadcast}, megagroup={is_megagroup}, username={username_attr}"
+                )
+                if is_broadcast:
+                    logger.info("💡 Target is a channel (broadcast). If your chat is a group, set GROUP_ID in .env and leave GROUP_USERNAME empty.")
                 
                 # Check if we can send messages (basic permission check)
                 try:

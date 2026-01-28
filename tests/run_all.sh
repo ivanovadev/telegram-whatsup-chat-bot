@@ -25,11 +25,11 @@ cleanup_docker_and_ansible() {
 
     # Stop Neo4j stack if running (best-effort)
     if command -v docker &> /dev/null; then
-        if [ -f "$DOCKER_DIR/docker-compose.neo4j.yml" ]; then
+        if [ -f "$DOCKER_DIR/neo4j/docker-compose.neo4j.yml" ]; then
             (
                 cd "$PROJECT_ROOT" && \
-                docker compose -f docker/docker-compose.neo4j.yml down >/dev/null 2>&1 || \
-                docker-compose -f docker/docker-compose.neo4j.yml down >/dev/null 2>&1 || true
+                docker compose -f docker/neo4j/docker-compose.neo4j.yml down >/dev/null 2>&1 || \
+                docker-compose -f docker/neo4j/docker-compose.neo4j.yml down >/dev/null 2>&1 || true
             )
         fi
 
