@@ -135,9 +135,9 @@
               driver: local
             neo4j_plugins:
               driver: local
-        dest: "{{ playbook_dir }}/../docker/docker-compose.neo4j.yml"
+        dest: "{{ playbook_dir }}/../docker/neo4j/docker-compose.neo4j.yml"
         mode: '0644'
-      when: not (lookup('file', '../docker/docker-compose.neo4j.yml') | default('', true) | length > 0)
+      when: not (lookup('file', '../docker/neo4j/docker-compose.neo4j.yml') | default('', true) | length > 0)
 
     - name: Stop existing Neo4j container if exists
       docker_container:
@@ -149,11 +149,11 @@
       shell: |
         cd {{ playbook_dir }}/..
         if command -v docker-compose &> /dev/null; then
-          docker-compose -f docker/docker-compose.neo4j.yml up -d
+          docker-compose -f docker/neo4j/docker-compose.neo4j.yml up -d
         elif docker compose version &> /dev/null; then
-          docker compose -f docker/docker-compose.neo4j.yml up -d
+          docker compose -f docker/neo4j/docker-compose.neo4j.yml up -d
         else
-          ~/.local/bin/docker-compose -f docker/docker-compose.neo4j.yml up -d
+          ~/.local/bin/docker-compose -f docker/neo4j/docker-compose.neo4j.yml up -d
         fi
       register: compose_result
       changed_when: "'Creating' in compose_result.stdout or 'Starting' in compose_result.stdout"
@@ -168,11 +168,11 @@
     - name: Check Neo4j status
       shell: |
         if command -v docker-compose &> /dev/null; then
-          docker-compose -f docker/docker-compose.neo4j.yml ps
+          docker-compose -f docker/neo4j/docker-compose.neo4j.yml ps
         elif docker compose version &> /dev/null; then
-          docker compose -f docker/docker-compose.neo4j.yml ps
+          docker compose -f docker/neo4j/docker-compose.neo4j.yml ps
         else
-          ~/.local/bin/docker-compose -f docker/docker-compose.neo4j.yml ps
+          ~/.local/bin/docker-compose -f docker/neo4j/docker-compose.neo4j.yml ps
         fi
       register: neo4j_status
       changed_when: false

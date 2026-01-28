@@ -33,7 +33,7 @@ brew install docker-compose
 ```bash
 
 # Docker Desktop includes the docker compose plugin
-docker compose -f docker/docker-compose.neo4j.yml up -d
+docker compose -f docker/neo4j/docker-compose.neo4j.yml up -d
 ```
 
 **Note:** Modern Docker Desktop versions include `docker compose` (without dash) as a plugin. If you have Docker Desktop, prefer `docker compose` instead of `docker-compose`.
@@ -43,6 +43,7 @@ docker compose -f docker/docker-compose.neo4j.yml up -d
 **Important:** First install Docker Desktop and docker-compose!
 
 ```bash
+
 # Start Neo4j (requires Docker and docker-compose)
 ansible-playbook ansible/playbook.yml
 ```
@@ -59,6 +60,7 @@ ansible-playbook ansible/playbook.yml -e "neo4j_password=my_secure_password"
 
 **Step 1: Install Docker Desktop (if needed)**
 ```bash
+
 # Recommended to install manually (once per machine):
 brew install --cask docker
 open -a Docker
@@ -79,7 +81,7 @@ ansible-playbook ansible/install-docker-compose.yml
 ansible-playbook ansible/playbook.yml
 
 # Or directly via helper script
-./docker/run-neo4j.sh up -d
+./docker/neo4j/run-neo4j.sh up -d
 ```
 
 ### Alternative: without Ansible
@@ -88,10 +90,10 @@ If you already have Docker Desktop:
 ```bash
 
 # Use docker compose plugin
-docker compose -f docker/docker-compose.neo4j.yml up -d
+docker compose -f docker/neo4j/docker-compose.neo4j.yml up -d
 
 # Or docker-compose standalone
-docker-compose -f docker/docker-compose.neo4j.yml up -d
+docker-compose -f docker/neo4j/docker-compose.neo4j.yml up -d
 ```
 
 ## Troubleshooting
@@ -140,6 +142,7 @@ open -a Docker
 If Docker Desktop is already installed but not running:
 
 ```bash
+
 # Start Docker Desktop manually
 open -a Docker
 
@@ -160,10 +163,10 @@ ansible-playbook ansible/playbook.yml --ask-become-pass
 ```bash
 
 # After running the playbook
-docker compose -f docker/docker-compose.neo4j.yml ps
+docker compose -f docker/neo4j/docker-compose.neo4j.yml ps
 
 # Or if you use standalone
-docker-compose -f docker/docker-compose.neo4j.yml ps
+docker-compose -f docker/neo4j/docker-compose.neo4j.yml ps
 ```
 
 ## Structure

@@ -21,8 +21,8 @@ fi
 # Activate virtual environment
 source venv/bin/activate
 
-# Install dependencies if needed
-if [ ! -f "venv/.installed" ]; then
+# Install dependencies (rerun when requirements.txt changes)
+if [ ! -f "venv/.installed" ] || [ "requirements.txt" -nt "venv/.installed" ]; then
     echo "Installing dependencies..."
     pip install -r requirements.txt
     touch venv/.installed

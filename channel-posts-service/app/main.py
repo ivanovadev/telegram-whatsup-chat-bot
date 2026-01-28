@@ -6,7 +6,8 @@ from telethon import TelegramClient
 from storage.db import Database
 from shared_services.channel_content import ChannelContentGenerator
 from shared_services.image_service import ImageService
-from shared_services.neo4j_service import Neo4jService
+from neo4j_app.neo4j_service import Neo4jService
+from neo4j_app.user_relationships import seed_example_social_graph
 from services.channel_handler import ChannelHandler
 
 # Load environment variables from service directory
@@ -93,6 +94,11 @@ async def main():
     neo4j = Neo4jService()
     if neo4j.enabled:
         print("✅ Neo4j graph database connected")
+        # Always (re)seed demo social graph on service start (idempotent).
+        print("🌱 Seeding example social graph into Neo4j...")
+        seeded = seed_example_social_graph(neo4j)
+        status = "done" if seeded else "skipped"
+        print(f"🌱 Seed status: {status}")
     else:
         print("ℹ️  Neo4j is disabled (set NEO4J_ENABLED=on to enable)")
     

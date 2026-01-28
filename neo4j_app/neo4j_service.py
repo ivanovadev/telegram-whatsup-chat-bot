@@ -277,7 +277,7 @@ class Neo4jService:
             with self.driver.session() as session:
                 # Create post node with timestamp
                 posted_at = datetime.now().isoformat()
-                result = session.run("""
+                session.run("""
                     MERGE (t:Topic {name: $topic})
                     CREATE (p:Post {
                         post_type: $post_type,
@@ -286,7 +286,6 @@ class Neo4jService:
                         content: $content
                     })
                     CREATE (p)-[:ABOUT]->(t)
-                    RETURN p
                 """, post_type=post_type, topic=topic, 
                     posted_at=posted_at, content=content)
                 
@@ -321,8 +320,8 @@ class Neo4jService:
                     LIMIT $limit
                 """, user_id=user_id, limit=limit)
                 
-                return [{"topic": record["topic"], "count": record["count"]} 
-                       for record in result]
+            return [{"topic": record["topic"], "count": record["count"]} 
+                    for record in result]
         except Exception as e:
             logger.error(f"Error getting user topics: {e}")
             return []
@@ -342,7 +341,7 @@ class Neo4jService:
                     LIMIT $limit
                 """, country_name=country_name, limit=limit)
                 
-                return [record["country"] for record in result]
+            return [record["country"] for record in result]
         except Exception as e:
             logger.error(f"Error getting related countries: {e}")
             return []
@@ -362,8 +361,8 @@ class Neo4jService:
                     LIMIT $limit
                 """, days=days, limit=limit)
                 
-                return [{"topic": record["topic"], "count": record["count"]} 
-                       for record in result]
+            return [{"topic": record["topic"], "count": record["count"]} 
+                    for record in result]
         except Exception as e:
             logger.error(f"Error getting popular topics: {e}")
             return []
@@ -409,7 +408,8 @@ class Neo4jService:
                     LIMIT $limit
                 """, topic=topic, limit=limit)
                 
-                return [record["country"] for record in result]
+            return [record["country"] for record in result]
         except Exception as e:
             logger.error(f"Error getting recommended countries: {e}")
             return []
+

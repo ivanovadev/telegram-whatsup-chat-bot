@@ -7,6 +7,32 @@ Telegram userbot split into three independent microservices:
 
 All services can run independently in separate terminals.
 
+## 🧠 Graph Database (Neo4j)
+
+This project actively uses a **Neo4j graph database** to model users, cities and relationships:
+- Users: Iva, Eugen, Katerina, Alex
+- Locations: London, Krakow, Warsaw, countries (UK, Poland)
+- Relationships: `LIVES_IN`, `FRIEND_OF`, `HUSBAND_OF`, `WIFE_OF`, `COLLEAGUE_OF`, `IN_COUNTRY`
+
+The social graph is **automatically (re)seeded on service startup** (see `neo4j_app/user_relationships.py`), so if you delete nodes or relationships in Neo4j Browser, they will be restored the next time the bot starts.
+
+Neo4j integration is used by:
+- `group-posts-service/app/main.py` – connects to Neo4j and seeds the demo social graph
+- `channel-posts-service/app/main.py` – connects to Neo4j and seeds the same graph
+
+Docker-based Neo4j setup and configuration live in:
+- `neo4j/` – `docker-compose.neo4j.yml`, `run-neo4j.sh`, service helpers
+
+Automation & infrastructure:
+- `docker/` – helper scripts for Docker workflows
+- `ansible/` – Ansible playbooks to automate setup and running Neo4j/Docker tooling
+
+To explore the graph manually, use queries like:
+
+```cypher
+MATCH (u:User)-[r]->(x) RETURN u, r, x;
+```
+
 ## 🏗️ Architecture
 
 ```
@@ -87,7 +113,6 @@ telegram-whatsup-chat-bot/
 │   ├── budget_guard.py
 │   ├── channel_content.py
 │   ├── image_service.py
-│   ├── neo4j_service.py
 │   ├── suggester.py
 │   └── topic_extractor.py
 ├── tests/
@@ -212,6 +237,13 @@ Each service has its own `.env` file. See service-specific `.env.example` files:
 **Common for all services:**
 - `TG_API_ID` - Get from https://my.telegram.org/apps
 - `TG_API_HASH` - Get from https://my.telegram.org/apps
+
+**LLM providers (OpenAI + Gemini):**
+This project supports **multiple LLM providers**:
+- **OpenAI** is used for most content generation (`OPENAI_API_KEY`, `OPENAI_MODEL`)
+- **Gemini** can be enabled for Africa content in `group-posts-service` (`GEMINI_API_KEY`, `GEMINI_MODEL`)
+  - Switch with: `AFRICA_LLM_PROVIDER=openai|gemini`
+  - Global toggle: `LLM_ENABLED=on|off`
 
 **Auto-Reply Service specific:**
 - `LLM_ENABLED=on` (optional)
@@ -460,7 +492,7 @@ This is expected behavior in Saved Messages. The bot processes commands correctl
 - `travel` / `travel morning` - Generate travel posts
 - `uk` - Generate UK post
 - `ukraine` - Generate Ukraine news
-- `weather` - Generate weather forecast
+- `weather` - Generate weather forecastststst
 
 ## 📝 License
 

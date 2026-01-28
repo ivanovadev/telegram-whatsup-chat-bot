@@ -1,46 +1,52 @@
 #!/bin/bash
-# Скрипт для запуску Neo4j через Docker Compose
+# Helper script to start Neo4j via Docker Compose (neo4j subfolder)
 
-# Перейти в директорію скрипта
+# Go to script directory (docker/neo4j)
 cd "$(dirname "$0")"
 
-# Знайти docker-compose або docker compose
+# Detect docker-compose or docker compose
 if command -v docker &> /dev/null && docker compose version &> /dev/null 2>&1; then
-    # Docker compose plugin (найкращий варіант)
+    # Docker compose plugin (best option)
     DOCKER_COMPOSE="docker"
     COMPOSE_ARGS=("compose" "-f" "docker-compose.neo4j.yml")
     COMPOSE_TYPE="plugin"
 elif command -v docker-compose &> /dev/null; then
-    # Standalone docker-compose в PATH
+    # Standalone docker-compose in PATH
     DOCKER_COMPOSE="docker-compose"
     COMPOSE_ARGS=("-f" "docker-compose.neo4j.yml")
     COMPOSE_TYPE="standalone"
 elif [ -f "$HOME/.local/bin/docker-compose" ]; then
-    # Перевірити чи це справді standalone або це викликає docker compose
+    # Check if this is truly standalone or just calling docker compose
     if "$HOME/.local/bin/docker-compose" --version 2>&1 | grep -q "Docker Compose version"; then
-        # Standalone в ~/.local/bin
+        # Standalone in ~/.local/bin
         DOCKER_COMPOSE="$HOME/.local/bin/docker-compose"
         COMPOSE_ARGS=("-f" "docker-compose.neo4j.yml")
         COMPOSE_TYPE="standalone"
     else
-        # Це викликає docker compose plugin
+        # This invokes docker compose plugin
         DOCKER_COMPOSE="docker"
         COMPOSE_ARGS=("compose" "-f" "docker-compose.neo4j.yml")
         COMPOSE_TYPE="plugin"
     fi
 else
-    echo "❌ docker-compose не знайдено!"
+    echo "❌ docker-compose not found!"
     echo ""
-    echo "💡 Встановіть docker-compose:"
+    echo "💡 Install docker-compose:"
     echo "   ansible-playbook ansible/install-docker-compose.yml"
     echo ""
-    echo "Або встановіть Docker Desktop (включає docker compose plugin)"
+    echo "Or install Docker Desktop (includes docker compose plugin)"
     exit 1
 fi
 
-# Виконати команду
-echo "🚀 Запуск Neo4j..."
-echo "Використовується: $DOCKER_COMPOSE ${COMPOSE_ARGS[*]} ($COMPOSE_TYPE)"
+# Execute command (default: up -d)
+CMD_ARGS=("$@")
+if [ ${#CMD_ARGS[@]} -eq 0 ]; then
+    CMD_ARGS=("up" "-d")
+fi
+
+echo "🚀 Starting Neo4j..."
+echo "Using: $DOCKER_COMPOSE ${COMPOSE_ARGS[*]} ${CMD_ARGS[*]} ($COMPOSE_TYPE)"
 echo ""
 
-exec "$DOCKER_COMPOSE" "${COMPOSE_ARGS[@]}" "$@"
+exec "$DOCKER_COMPOSE" "${COMPOSE_ARGS[@]}" "${CMD_ARGS[@]}"
+
